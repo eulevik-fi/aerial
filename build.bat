@@ -1,0 +1,17 @@
+@echo off
+setlocal
+set "VCVARS=C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\Build\vcvars64.bat"
+if not exist "%VCVARS%" (
+    echo [ERROR] vcvars64.bat not found at "%VCVARS%"
+    exit /b 1
+)
+call "%VCVARS%"
+if errorlevel 1 exit /b 1
+
+dotnet publish Aerial.scr.csproj -c Release -r win-x64 --self-contained false -o out
+if errorlevel 1 exit /b 1
+
+copy /y out\Aerial.exe out\Aerial.scr >nul
+echo.
+echo Build complete: %~dp0out\Aerial.scr
+endlocal

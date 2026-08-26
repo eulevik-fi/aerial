@@ -1,0 +1,14 @@
+# Build results
+bin/
+obj/
+out/
+
+# Visual Studio / Rider cache
+.vs/
+.idea/
+*.user
+*.suo
+
+# NuGet
+*.nupkg
+packages/
