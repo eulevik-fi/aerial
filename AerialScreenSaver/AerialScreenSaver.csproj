@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AssemblyName>Aerial</AssemblyName>
+    <RootNamespace>Aerial</RootNamespace>
+    <Version>1.0.0</Version>
+    <!-- Keep the output folder clean -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared sources live in ..\src -->
+    <Compile Include="..\src\ScreensaverForm.cs" Link="src\ScreensaverForm.cs" />
+    <Compile Include="..\src\Videos.cs" Link="src\Videos.cs" />
+    <Compile Include="..\src\IdleExitTracker.cs" Link="src\IdleExitTracker.cs" />
+
+    <!-- Keep the standalone app's sources out of this project -->
+    <Compile Remove="..\AerialApp\**" />
+    <None Remove="..\AerialApp\**" />
+    <EmbeddedResource Remove="..\AerialApp\**" />
+  </ItemGroup>
+
+</Project>
