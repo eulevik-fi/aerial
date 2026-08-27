@@ -21,7 +21,7 @@ internal sealed class ScreensaverForm : Form
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
         TopMost = true;
-        BackColor = Color.Red;
+        BackColor = Color.Black;
         DoubleBuffered = true;
         KeyPreview = true;
 
@@ -129,7 +129,7 @@ internal sealed class PreviewForm : Form
 
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
-        BackColor = Color.Red;
+        BackColor = Color.Black;
         StartPosition = FormStartPosition.Manual;
     }
 
@@ -151,7 +151,7 @@ internal sealed class PreviewForm : Form
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        using var brush = new SolidBrush(Color.Red);
+        using var brush = new SolidBrush(Color.Black);
         e.Graphics.FillRectangle(brush, ClientRectangle);
     }
 }
