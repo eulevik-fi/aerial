@@ -2,17 +2,20 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
       Name="Aerial Screen Saver"
-      Manufacturer="Aerial"
+      Manufacturer="Eric Ulevik"
       Version="$(var.ProductVersion)"
+      Scope="perUser"
       UpgradeCode="D6A2D79C-6E5F-4A2A-9AC4-3C50A0EE8DF5">
     <SummaryInformation Description="Aerial Screen Saver" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of Aerial Screen Saver is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Aerial Screen Saver">
-        <Directory Id="LIBVLCDIR" Name="libvlc">
-          <Directory Id="LIBVLCX64DIR" Name="win-x64" />
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="PROGRAMSDIR" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Aerial Screen Saver">
+          <Directory Id="LIBVLCDIR" Name="libvlc">
+            <Directory Id="LIBVLCX64DIR" Name="win-x64" />
+          </Directory>
         </Directory>
       </Directory>
     </StandardDirectory>
@@ -30,12 +33,30 @@
 
     <Component Id="ScreenSaverRegistration" Directory="INSTALLFOLDER" Guid="*">
       <RegistryValue
-          Root="HKLM"
-          Key="Software\Microsoft\Windows NT\CurrentVersion\Screen Savers"
-          Name="Aerial"
+        Root="HKCU"
+        Key="Control Panel\Desktop"
+        Name="SCRNSAVE.EXE"
           Value="[INSTALLFOLDER]Aerial.scr"
           Type="string"
           KeyPath="yes" />
+      <RegistryValue
+        Root="HKCU"
+        Key="Control Panel\Desktop"
+        Name="ScreenSaveActive"
+        Value="1"
+        Type="integer" />
     </Component>
+
+    <CustomAction
+        Id="BroadcastScreenSaverSettings"
+        Directory="SystemFolder"
+        ExeCommand="-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command &quot;$signature = '[DllImport(''user32.dll'')] public static extern bool SystemParametersInfo(int uAction, int uParam, ref int lpvParam, int fuWinIni);'; $type = Add-Type -MemberDefinition $signature -Name 'Win32Utils' -Namespace 'Win32' -PassThru; $active = 1; $type::SystemParametersInfo(17, $active, [ref]$active, 3) | Out-Null&quot;"
+        Execute="deferred"
+        Impersonate="yes"
+        Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="BroadcastScreenSaverSettings" After="InstallFiles" Condition="NOT Installed" />
+    </InstallExecuteSequence>
   </Package>
 </Wix>
