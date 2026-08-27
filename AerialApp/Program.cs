@@ -12,8 +12,8 @@ namespace Aerial;
 internal static class AerialApp
 {
     private static readonly Uri VideoUrl =
-        //new("https://sylvan.apple.com/Aerials/2x/Videos/LA_A006_C008_2K_SDR_HEVC.mov");
-    new("https://lorem.video/720p");
+        new("http://a1.phobos.apple.com/us/r1000/000/Features/atv/AutumnResources/videos/b9-3.mov");
+        //new("https://lorem.video/720p");
 
     [STAThread]
     private static int Main()

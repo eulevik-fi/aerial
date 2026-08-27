@@ -103,6 +103,9 @@ internal sealed class VideoPlayer : IDisposable
         using var media = new Media(_libVlc!, url.AbsoluteUri, FromType.FromLocation);
         media.AddOption(":input-repeat=65535"); // loop indefinitely
 
+        media.AddOption(":no-gnutls-system-trust");
+        media.AddOption(":http-reconnect");
+
         var started = _mediaPlayer.Play(media);
         Log($"[{_name}] MediaPlayer.Play() returned {started}, state={_mediaPlayer.State}");
     }
