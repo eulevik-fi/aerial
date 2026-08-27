@@ -73,6 +73,22 @@ internal static class Videos
         }
     }
 
+    public static Uri? SelectNextVideo(
+        IReadOnlyList<Uri> videoUrls,
+        Uri current,
+        HashSet<Uri> activeVideos)
+    {
+        var availableVideos = videoUrls
+            .Where(video => video != current &&
+                            !activeVideos.Contains(video) &&
+                            !IsInMru(video))
+            .ToArray();
+
+        return availableVideos.Length == 0
+            ? null
+            : availableVideos[Random.Shared.Next(availableVideos.Length)];
+    }
+
     /// <summary>Records a started URL, keeping the 10 most recent entries.</summary>
     public static void RecordPlayed(Uri url)
     {
