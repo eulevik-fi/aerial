@@ -58,11 +58,6 @@ internal static class Videos
 
         UrlValues = ExtractUrlValues(json);
         LoadMru();
-
-        foreach (string url in UrlValues)
-        {
-            Log($"Video URL: {url}");
-        }
     }
 
     public static bool IsInMru(Uri url)

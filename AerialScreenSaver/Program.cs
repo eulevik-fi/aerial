@@ -10,57 +10,46 @@ internal static class Program
 {
     internal const string PreviewExitEventName = "Local\\Aerial-Screensaver-Preview-Exit";
 
-    // Prevents multiple instances of the screensaver from running at once,
-    // which can happen when Windows launches it on several monitors.
-    private static Mutex? _mutex;
-
     [STAThread]
     private static int Main(string[] args)
     {
-        _mutex = new Mutex(true, "Local\\Aerial-Screensaver-Mutex", out bool firstInstance);
+        VideoPlayer.Log($"AerialScreenSaver starting. Args: [{string.Join(", ", args.Select(arg => $"\"{arg}\""))}]");
 
         ApplicationConfiguration.Initialize();
 
         string arg = args.Length > 0 ? args[0].ToLowerInvariant() : string.Empty;
 
-        try
+        switch (arg)
         {
-            switch (arg)
-            {
-                case "/s":
-                case "-s":
-                    if (!firstInstance)
-                        return 0;
-                    RunFullScreen();
-                    return 0;
+            case "/s":
+            case "-s":
+                RunFullScreen();
+                return 0;
 
-                case "/c":
-                case "-c":
+            case "/c":
+            case "-c":
+                SignalPreviewExit();
+                ShowOptionsMessage();
+                return 0;
+
+            case "/p":
+            case "-p":
+                if (args.Length >= 2 && long.TryParse(args[1], out long hwndValue))
+                {
+                    ShowPreview(new IntPtr(hwndValue));
+                }
+                return 0;
+
+            default:
+                if (arg.StartsWith("/c:", StringComparison.OrdinalIgnoreCase) ||
+                    arg.StartsWith("-c:", StringComparison.OrdinalIgnoreCase))
+                {
                     SignalPreviewExit();
+                    ShowOptionsMessage();
                     return 0;
-
-                case "/p":
-                case "-p":
-                    if (args.Length >= 2 && long.TryParse(args[1], out long hwndValue))
-                    {
-                        ShowPreview(new IntPtr(hwndValue));
-                    }
-                    return 0;
-
-                default:
-                    if (arg.StartsWith("/c:", StringComparison.OrdinalIgnoreCase) ||
-                        arg.StartsWith("-c:", StringComparison.OrdinalIgnoreCase))
-                    {
-                        SignalPreviewExit();
-                        return 0;
-                    }
-                    return 0;
+                }
+                return 0;
             }
-        }
-        finally
-        {
-            _mutex.Dispose();
-        }
     }
 
     private static void SignalPreviewExit()
@@ -76,11 +65,18 @@ internal static class Program
         }
     }
 
+    private static void ShowOptionsMessage()
+    {
+        MessageBox.Show(
+            "This screen saver has no options that you can set.",
+            "Aerial",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+    }
+
     /// <summary>/s - run one full-screen form per attached display.</summary>
     private static void RunFullScreen()
     {
-        VideoPlayer.TruncateLog();
-
         // Initialize LibVLC and load the shared URL collection.
         VideoPlayer.InitializeCore();
         // Fetch (or refresh) the video catalog before showing anything.
@@ -190,7 +186,38 @@ internal static class Program
         if (parentHwnd == IntPtr.Zero)
             return;
 
+        VideoPlayer.InitializeCore();
+        Videos.InitializeAsync().GetAwaiter().GetResult();
+
+        Uri[] videoUrls = Videos.UrlValues
+            .Select(url => Uri.TryCreate(url, UriKind.Absolute, out Uri? videoUrl) ? videoUrl : null)
+            .Where(videoUrl => videoUrl is not null)
+            .Select(videoUrl => videoUrl!)
+            .Distinct()
+            .ToArray();
+
+        var availableVideos = videoUrls
+            .Where(video => !Videos.IsInMru(video))
+            .ToArray();
+        if (availableVideos.Length == 0)
+            return;
+
+        var videoView = new VideoView
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.Black,
+        };
+
         using var preview = new PreviewForm(parentHwnd);
+        preview.Controls.Add(videoView);
+        using var player = new VideoPlayer(videoView, "preview");
+        Uri video = availableVideos[Random.Shared.Next(availableVideos.Length)];
+        preview.Shown += (_, _) =>
+        {
+            player.Attach();
+            Videos.RecordPlayed(video);
+            player.Play(video);
+        };
         Application.Run(preview);
     }
 }

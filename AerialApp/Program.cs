@@ -98,7 +98,6 @@ internal static class AerialApp
                 VideoPlayer.Log($"[screen{players.IndexOf(player)}] form shown, attaching");
                 player.Attach();
                 Videos.RecordPlayed(currentVideo);
-                VideoPlayer.Log($"Video URL: {currentVideo}");
                 player.Play(currentVideo);
             };
 
