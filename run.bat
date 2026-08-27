@@ -6,7 +6,7 @@ rem   /p <hwnd> = preview inside a parent window handle
 
 set "SCR=%~dp0out\Aerial.scr"
 if not exist "%SCR%" (
-    echo [ERROR] %SCR% not found. Run build.bat first.
+    echo [ERROR] %SCR% not found. Run buildall.bat first.
     exit /b 1
 )
 

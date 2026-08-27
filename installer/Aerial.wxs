@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="Aerial Screen Saver"
+      Manufacturer="Aerial"
+      Version="$(var.ProductVersion)"
+      UpgradeCode="D6A2D79C-6E5F-4A2A-9AC4-3C50A0EE8DF5">
+    <SummaryInformation Description="Aerial Screen Saver" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Aerial Screen Saver is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Aerial Screen Saver">
+        <Directory Id="LIBVLCDIR" Name="libvlc">
+          <Directory Id="LIBVLCX64DIR" Name="win-x64" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="Aerial Screen Saver" Level="1">
+      <ComponentRef Id="ScreenSaverRegistration" />
+      <Files Include="$(var.SourceDir)\Aerial.scr" Directory="INSTALLFOLDER" />
+      <Files Include="$(var.SourceDir)\Aerial.dll" Directory="INSTALLFOLDER" />
+      <Files Include="$(var.SourceDir)\Aerial.deps.json" Directory="INSTALLFOLDER" />
+      <Files Include="$(var.SourceDir)\Aerial.runtimeconfig.json" Directory="INSTALLFOLDER" />
+      <Files Include="$(var.SourceDir)\LibVLCSharp.dll" Directory="INSTALLFOLDER" />
+      <Files Include="$(var.SourceDir)\LibVLCSharp.WinForms.dll" Directory="INSTALLFOLDER" />
+      <Files Include="$(var.SourceDir)\libvlc\win-x64\**" Directory="LIBVLCX64DIR" />
+    </Feature>
+
+    <Component Id="ScreenSaverRegistration" Directory="INSTALLFOLDER" Guid="*">
+      <RegistryValue
+          Root="HKLM"
+          Key="Software\Microsoft\Windows NT\CurrentVersion\Screen Savers"
+          Name="Aerial"
+          Value="[INSTALLFOLDER]Aerial.scr"
+          Type="string"
+          KeyPath="yes" />
+    </Component>
+  </Package>
+</Wix>

@@ -160,7 +160,7 @@ internal static class Program
         }
 
         // Show all forms before entering the message loop so every display
-        // paints its red surface simultaneously.
+        // paints its black surface simultaneously.
         foreach (var form in forms)
         {
             form.Show();

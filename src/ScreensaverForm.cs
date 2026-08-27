@@ -5,7 +5,7 @@ using System.Windows.Forms;
 namespace Aerial;
 
 /// <summary>
-/// Full-screen red form shown on a single display. One instance is created
+/// Full-screen black form shown on a single display. One instance is created
 /// per attached monitor so multi-monitor setups are covered.
 /// </summary>
 internal sealed class ScreensaverForm : Form
