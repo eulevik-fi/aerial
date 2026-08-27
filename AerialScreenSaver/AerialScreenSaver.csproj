@@ -19,12 +19,15 @@
     <!-- Shared sources live in ..\src -->
     <Compile Include="..\src\ScreensaverForm.cs" Link="src\ScreensaverForm.cs" />
     <Compile Include="..\src\Videos.cs" Link="src\Videos.cs" />
+    <Compile Include="..\src\VideoPlayer.cs" Link="src\VideoPlayer.cs" />
     <Compile Include="..\src\IdleExitTracker.cs" Link="src\IdleExitTracker.cs" />
 
-    <!-- Keep the standalone app's sources out of this project -->
-    <Compile Remove="..\AerialApp\**" />
-    <None Remove="..\AerialApp\**" />
-    <EmbeddedResource Remove="..\AerialApp\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibVLCSharp" Version="3.10.1" />
+    <PackageReference Include="LibVLCSharp.WinForms" Version="3.10.1" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
   </ItemGroup>
 
 </Project>

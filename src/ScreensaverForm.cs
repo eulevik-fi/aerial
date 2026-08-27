@@ -118,10 +118,18 @@ internal sealed class PreviewForm : Form
     [DllImport("user32.dll")]
     private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
 
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left, Top, Right, Bottom; }
 
     private readonly IntPtr _parentHwnd;
+    private readonly EventWaitHandle _exitSignal;
+    private readonly System.Windows.Forms.Timer _parentMonitor;
 
     public PreviewForm(IntPtr parentHwnd)
     {
@@ -131,6 +139,42 @@ internal sealed class PreviewForm : Form
         ShowInTaskbar = false;
         BackColor = Color.Black;
         StartPosition = FormStartPosition.Manual;
+
+        _exitSignal = new EventWaitHandle(
+            false,
+            EventResetMode.ManualReset,
+            Program.PreviewExitEventName);
+
+        _parentMonitor = new System.Windows.Forms.Timer { Interval = 500 };
+        _parentMonitor.Tick += (_, _) =>
+        {
+            if (_exitSignal.WaitOne(0) ||
+                !IsWindow(_parentHwnd) ||
+                !IsWindowVisible(_parentHwnd))
+                Close();
+        };
+        _parentMonitor.Start();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _parentMonitor.Dispose();
+            _exitSignal.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var cp = base.CreateParams;
+            cp.Style = (cp.Style & ~0x00C00000) | 0x40000000; // WS_CHILD
+            cp.ExStyle &= ~0x00040000; // WS_EX_APPWINDOW
+            return cp;
+        }
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -141,9 +185,8 @@ internal sealed class PreviewForm : Form
 
         if (GetClientRect(_parentHwnd, out RECT rc))
         {
-            // The preview rect is small and lives in a single-DPI dialog, so
-            // plain pixel math is fine here.
-            Location = new Point(rc.Left, rc.Top);
+            // Child-window coordinates start at the parent's client origin.
+            Location = new Point(0, 0);
             Size = new Size(rc.Right - rc.Left, rc.Bottom - rc.Top);
         }
     }

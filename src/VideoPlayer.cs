@@ -18,6 +18,8 @@ internal sealed class VideoPlayer : IDisposable
     private readonly string _name;
     private bool _disposed;
 
+    public event Action? Ended;
+
     /// <summary>
     /// Initializes the LibVLC core. Call once at startup, before creating any
     /// VideoPlayer instances.
@@ -42,9 +44,8 @@ internal sealed class VideoPlayer : IDisposable
             Log($"WARNING: native libvlc directory missing: {libDir}");
         }
 
-        _libVlc = new LibVLC(enableDebugLogs: true,
+        _libVlc = new LibVLC(enableDebugLogs: false,
             "");
-        _libVlc.Log += (_, e) => Log($"[vlc] {e.Message}");
         Log("LibVLC core initialized.");
     }
 
@@ -75,7 +76,11 @@ internal sealed class VideoPlayer : IDisposable
                 Log($"[{_name}] event: TimeChanged t={e.Time}ms");
         };
         _mediaPlayer.EncounteredError += (_, _) => Log($"[{_name}] event: ENCOUNTERED_ERROR");
-        _mediaPlayer.EndReached += (_, _) => Log($"[{_name}] event: EndReached");
+        _mediaPlayer.EndReached += (_, _) =>
+        {
+            Log($"[{_name}] event: EndReached");
+            Ended?.Invoke();
+        };
         _mediaPlayer.Buffering += (_, e) =>
         {
             if (e.Cache % 25 == 0)
@@ -96,12 +101,11 @@ internal sealed class VideoPlayer : IDisposable
         Log($"[{_name}] attached to hwnd=0x{_hostControl.Handle.ToInt64():X} size={_hostControl.Width}x{_hostControl.Height}");
     }
 
-    /// <summary>Starts streaming playback of the given URL, looping forever.</summary>
+    /// <summary>Starts streaming playback of the given URL.</summary>
     public void Play(Uri url)
     {
         Log($"[{_name}] Play({url})");
         using var media = new Media(_libVlc!, url.AbsoluteUri, FromType.FromLocation);
-        media.AddOption(":input-repeat=65535"); // loop indefinitely
 
         media.AddOption(":no-gnutls-system-trust");
         media.AddOption(":http-reconnect");
@@ -128,8 +132,24 @@ internal sealed class VideoPlayer : IDisposable
     }
 
     /// <summary>
-    /// Appends a line to %LOCALAPPDATA%\Aerial\videoplayer.log.
+    /// Appends a line to %LOCALAPPDATA%\Aerial\aerial-log.txt.
     /// </summary>
+    internal static void TruncateLog()
+    {
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Aerial");
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "aerial-log.txt"), string.Empty);
+        }
+        catch (IOException)
+        {
+            // Logging must never break startup.
+        }
+    }
+
     internal static void Log(string message)
     {
         try
@@ -139,7 +159,7 @@ internal sealed class VideoPlayer : IDisposable
                 "Aerial");
             Directory.CreateDirectory(dir);
             File.AppendAllText(
-                Path.Combine(dir, "videoplayer.log"),
+                Path.Combine(dir, "aerial-log.txt"),
                 $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
         }
         catch (IOException)

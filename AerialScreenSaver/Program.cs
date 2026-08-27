@@ -2,11 +2,30 @@ using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
+using LibVLCSharp.WinForms;
 
 namespace Aerial;
 
 internal static class Program
 {
+    internal const string PreviewExitEventName = "Local\\Aerial-Screensaver-Preview-Exit";
+
+    private static Uri? SelectNextVideo(
+        IReadOnlyList<Uri> videoUrls,
+        Uri current,
+        HashSet<Uri> activeVideos)
+    {
+        var availableVideos = videoUrls
+            .Where(video => video != current &&
+                            !activeVideos.Contains(video) &&
+                            !Videos.IsInMru(video))
+            .ToArray();
+
+        return availableVideos.Length == 0
+            ? null
+            : availableVideos[Random.Shared.Next(availableVideos.Length)];
+    }
+
     // Prevents multiple instances of the screensaver from running at once,
     // which can happen when Windows launches it on several monitors.
     private static Mutex? _mutex;
@@ -33,7 +52,7 @@ internal static class Program
 
                 case "/c":
                 case "-c":
-                    ShowOptions();
+                    SignalPreviewExit();
                     return 0;
 
                 case "/p":
@@ -45,8 +64,12 @@ internal static class Program
                     return 0;
 
                 default:
-                    // No recognized argument: behave like the configure dialog.
-                    ShowOptions();
+                    if (arg.StartsWith("/c:", StringComparison.OrdinalIgnoreCase) ||
+                        arg.StartsWith("-c:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        SignalPreviewExit();
+                        return 0;
+                    }
                     return 0;
             }
         }
@@ -56,18 +79,103 @@ internal static class Program
         }
     }
 
+    private static void SignalPreviewExit()
+    {
+        try
+        {
+            if (EventWaitHandle.TryOpenExisting(PreviewExitEventName, out EventWaitHandle? signal))
+                signal!.Set();
+            signal?.Dispose();
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
     /// <summary>/s - run one full-screen form per attached display.</summary>
     private static void RunFullScreen()
     {
+        VideoPlayer.TruncateLog();
+
+        // Initialize LibVLC and load the shared URL collection.
+        VideoPlayer.InitializeCore();
         // Fetch (or refresh) the video catalog before showing anything.
         Videos.InitializeAsync().GetAwaiter().GetResult();
+
+        Uri[] videoUrls = Videos.UrlValues
+            .Select(url => Uri.TryCreate(url, UriKind.Absolute, out Uri? videoUrl) ? videoUrl : null)
+            .Where(videoUrl => videoUrl is not null)
+            .Select(videoUrl => videoUrl!)
+            .Distinct()
+            .ToArray();
+
+        var initialVideos = videoUrls
+            .Where(video => !Videos.IsInMru(video))
+            .ToList();
+
+        if (initialVideos.Count == 0)
+            return;
+
+        for (int index = initialVideos.Count - 1; index > 0; index--)
+        {
+            int swapIndex = Random.Shared.Next(index + 1);
+            (initialVideos[index], initialVideos[swapIndex]) =
+                (initialVideos[swapIndex], initialVideos[index]);
+        }
 
         using var idleTracker = new IdleExitTracker();
 
         var forms = new List<ScreensaverForm>();
+        var players = new List<VideoPlayer>();
+        var activeVideos = new HashSet<Uri>();
+        var videoGate = new object();
+
         foreach (Screen screen in Screen.AllScreens)
         {
             var form = new ScreensaverForm(screen);
+            var videoView = new VideoView
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Black,
+            };
+            form.Controls.Add(videoView);
+
+            var player = new VideoPlayer(videoView, $"screen{forms.Count}");
+            players.Add(player);
+            Uri currentVideo;
+            lock (videoGate)
+            {
+                currentVideo = initialVideos[forms.Count % initialVideos.Count];
+                activeVideos.Add(currentVideo);
+            }
+
+            player.Ended += () =>
+            {
+                Uri? nextVideo;
+                lock (videoGate)
+                {
+                    activeVideos.Remove(currentVideo);
+                    nextVideo = SelectNextVideo(videoUrls, currentVideo, activeVideos);
+                    if (nextVideo is not null)
+                    {
+                        currentVideo = nextVideo;
+                        activeVideos.Add(currentVideo);
+                    }
+                }
+
+                if (nextVideo is null)
+                    return;
+
+                Videos.RecordPlayed(nextVideo);
+                player.Play(nextVideo);
+            };
+
+            form.Shown += (_, _) =>
+            {
+                player.Attach();
+                Videos.RecordPlayed(currentVideo);
+                player.Play(currentVideo);
+            };
             forms.Add(form);
         }
 
@@ -82,20 +190,13 @@ internal static class Program
 
         Application.Run();
 
+        foreach (var player in players)
+            player.Dispose();
+
         foreach (var form in forms)
         {
             form.Dispose();
         }
-    }
-
-    /// <summary>/c - configuration dialog.</summary>
-    private static void ShowOptions()
-    {
-        MessageBox.Show(
-            "No options... yet.",
-            "Aerial Screensaver",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
     }
 
     /// <summary>/p &lt;hwnd&gt; - render inside the little preview window of the

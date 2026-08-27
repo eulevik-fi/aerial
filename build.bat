@@ -15,10 +15,4 @@ if errorlevel 1 exit /b 1
 copy /y out\Aerial.exe out\Aerial.scr >nul
 echo.
 echo Build complete: %~dp0out\Aerial.scr
-
-rem --- Standalone app (AerialApp.exe) ---
-dotnet publish AerialApp\AerialApp.csproj -c Release -r win-x64 --self-contained false -o out
-if errorlevel 1 exit /b 1
-echo.
-echo Build complete: %~dp0out\AerialApp.exe
 endlocal
