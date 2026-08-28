@@ -12,3 +12,7 @@ out/
 # NuGet
 *.nupkg
 packages/
+
+# WiX build symbols
+*.wixpdb
+*.msi

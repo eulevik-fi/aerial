@@ -22,13 +22,7 @@
 
     <Feature Id="MainFeature" Title="Aerial Screen Saver" Level="1">
       <ComponentRef Id="ScreenSaverRegistration" />
-      <Files Include="$(var.SourceDir)\Aerial.scr" Directory="INSTALLFOLDER" />
-      <Files Include="$(var.SourceDir)\Aerial.dll" Directory="INSTALLFOLDER" />
-      <Files Include="$(var.SourceDir)\Aerial.deps.json" Directory="INSTALLFOLDER" />
-      <Files Include="$(var.SourceDir)\Aerial.runtimeconfig.json" Directory="INSTALLFOLDER" />
-      <Files Include="$(var.SourceDir)\LibVLCSharp.dll" Directory="INSTALLFOLDER" />
-      <Files Include="$(var.SourceDir)\LibVLCSharp.WinForms.dll" Directory="INSTALLFOLDER" />
-      <Files Include="$(var.SourceDir)\libvlc\win-x64\**" Directory="LIBVLCX64DIR" />
+      <Files Include="$(var.SourceDir)\**" Directory="INSTALLFOLDER" />
     </Feature>
 
     <Component Id="ScreenSaverRegistration" Directory="INSTALLFOLDER" Guid="*">
@@ -50,8 +44,8 @@
     <CustomAction
         Id="BroadcastScreenSaverSettings"
         Directory="SystemFolder"
-        ExeCommand="-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command &quot;$signature = '[DllImport(''user32.dll'')] public static extern bool SystemParametersInfo(int uAction, int uParam, ref int lpvParam, int fuWinIni);'; $type = Add-Type -MemberDefinition $signature -Name 'Win32Utils' -Namespace 'Win32' -PassThru; $active = 1; $type::SystemParametersInfo(17, $active, [ref]$active, 3) | Out-Null&quot;"
-        Execute="deferred"
+        ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command &quot;$signature = '[System.Runtime.InteropServices.DllImport(''user32.dll'')] public static extern bool SystemParametersInfo(int uAction, int uParam, ref int lpvParam, int fuWinIni);'; $type = Add-Type -MemberDefinition $signature -Name 'Win32Utils' -Namespace 'Win32' -PassThru; $active = 1; $type::SystemParametersInfo(17, $active, [ref]$active, 3) | Out-Null; Start-Process -WindowStyle Hidden -FilePath (Join-Path $env:WINDIR 'System32\rundll32.exe') -ArgumentList 'shell32.dll,Control_RunDLL desk.cpl,,1'&quot;"
+        Execute="commit"
         Impersonate="yes"
         Return="ignore" />
 
