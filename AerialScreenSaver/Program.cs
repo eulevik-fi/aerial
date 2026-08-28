@@ -10,6 +10,12 @@ internal static class Program
 {
     internal const string PreviewExitEventName = "Local\\Aerial-Screensaver-Preview-Exit";
 
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
     [STAThread]
     private static int Main(string[] args)
     {
@@ -203,22 +209,24 @@ internal static class Program
         if (availableVideos.Length == 0)
             return;
 
-        var videoView = new VideoView
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.Black,
-        };
-
-        using var preview = new PreviewForm(parentHwnd);
-        preview.Controls.Add(videoView);
-        using var player = new VideoPlayer(videoView, "preview");
+        using var exitSignal = new EventWaitHandle(
+            false,
+            EventResetMode.ManualReset,
+            PreviewExitEventName);
+        using var monitor = new System.Windows.Forms.Timer { Interval = 500 };
+        using var player = new VideoPlayer(parentHwnd, "preview");
         Uri video = availableVideos[Random.Shared.Next(availableVideos.Length)];
-        preview.Shown += (_, _) =>
+        monitor.Tick += (_, _) =>
         {
-            player.Attach();
-            Videos.RecordPlayed(video);
-            player.Play(video);
+            if (exitSignal.WaitOne(0) ||
+                !IsWindow(parentHwnd) ||
+                !IsWindowVisible(parentHwnd))
+                Application.ExitThread();
         };
-        Application.Run(preview);
+        player.Attach(parentHwnd);
+        Videos.RecordPlayed(video);
+        player.Play(video);
+        monitor.Start();
+        Application.Run();
     }
 }

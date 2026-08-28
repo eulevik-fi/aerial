@@ -113,9 +113,6 @@ internal sealed class ScreensaverForm : Form
 internal sealed class PreviewForm : Form
 {
     [DllImport("user32.dll")]
-    private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
-
-    [DllImport("user32.dll")]
     private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
 
     [DllImport("user32.dll")]
@@ -172,6 +169,7 @@ internal sealed class PreviewForm : Form
         {
             var cp = base.CreateParams;
             cp.Style = (cp.Style & ~0x00C00000) | 0x40000000; // WS_CHILD
+            cp.Parent = _parentHwnd;
             cp.ExStyle &= ~0x00040000; // WS_EX_APPWINDOW
             return cp;
         }
@@ -180,8 +178,6 @@ internal sealed class PreviewForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-
-        SetParent(Handle, _parentHwnd);
 
         if (GetClientRect(_parentHwnd, out RECT rc))
         {

@@ -14,7 +14,7 @@ internal sealed class VideoPlayer : IDisposable
     private static LibVLC? _libVlc;
 
     private readonly MediaPlayer _mediaPlayer;
-    private readonly System.Windows.Forms.Control _hostControl;
+    private readonly System.Windows.Forms.Control? _hostControl;
     private readonly string _name;
     private bool _disposed;
 
@@ -56,6 +56,19 @@ internal sealed class VideoPlayer : IDisposable
     /// show/DPI adjustment.
     /// </param>
     public VideoPlayer(System.Windows.Forms.Control hostControl, string name = "screen")
+        : this(hostControl, null, name)
+    {
+    }
+
+    public VideoPlayer(IntPtr hwnd, string name = "screen")
+        : this(null, hwnd, name)
+    {
+    }
+
+    private VideoPlayer(
+        System.Windows.Forms.Control? hostControl,
+        IntPtr? hwnd,
+        string name)
     {
         if (_libVlc is null)
             throw new InvalidOperationException(
@@ -70,7 +83,7 @@ internal sealed class VideoPlayer : IDisposable
 
         _mediaPlayer.EndReached += (_, _) => Ended?.Invoke();
 
-        Log($"[{_name}] VideoPlayer created for control {_hostControl.GetType().Name}");
+        Log($"[{_name}] VideoPlayer created for {(hwnd.HasValue ? $"hwnd=0x{hwnd.Value.ToInt64():X}" : $"control {_hostControl!.GetType().Name}")}");
     }
 
     /// <summary>
@@ -79,8 +92,17 @@ internal sealed class VideoPlayer : IDisposable
     /// </summary>
     public void Attach()
     {
+        if (_hostControl is null)
+            throw new InvalidOperationException("This player requires Attach(IntPtr) for a direct window handle.");
+
         _mediaPlayer.Hwnd = _hostControl.Handle;
         Log($"[{_name}] attached to hwnd=0x{_hostControl.Handle.ToInt64():X} size={_hostControl.Width}x{_hostControl.Height}");
+    }
+
+    public void Attach(IntPtr hwnd)
+    {
+        _mediaPlayer.Hwnd = hwnd;
+        Log($"[{_name}] attached directly to hwnd=0x{hwnd.ToInt64():X}");
     }
 
     /// <summary>Starts streaming playback of the given URL.</summary>
