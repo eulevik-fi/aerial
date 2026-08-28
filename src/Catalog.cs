@@ -56,6 +56,15 @@ internal sealed class Catalog
                     if (property.NameEquals("url") && property.Value.ValueKind == JsonValueKind.String)
                         urls.Add(property.Value.GetString()!);
 
+                    if (property.NameEquals("url-1080-H264") && property.Value.ValueKind == JsonValueKind.String)
+                        urls.Add(property.Value.GetString()!.Replace("\\", string.Empty));
+
+                    // url-1080-H264
+                    // url-1080-SDR
+                    // url-1080-HDR
+                    // url-4K-HDR
+                    // url-4K-SDR
+                    
                     CollectUrlValues(property.Value, urls);
                 }
                 break;

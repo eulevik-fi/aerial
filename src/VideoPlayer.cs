@@ -82,8 +82,6 @@ internal sealed class VideoPlayer : IDisposable
         };
 
         _mediaPlayer.EndReached += (_, _) => Ended?.Invoke();
-
-        Log($"[{_name}] VideoPlayer created for {(hwnd.HasValue ? $"hwnd=0x{hwnd.Value.ToInt64():X}" : $"control {_hostControl!.GetType().Name}")}");
     }
 
     /// <summary>
@@ -96,18 +94,26 @@ internal sealed class VideoPlayer : IDisposable
             throw new InvalidOperationException("This player requires Attach(IntPtr) for a direct window handle.");
 
         _mediaPlayer.Hwnd = _hostControl.Handle;
-        Log($"[{_name}] attached to hwnd=0x{_hostControl.Handle.ToInt64():X} size={_hostControl.Width}x{_hostControl.Height}");
     }
 
     public void Attach(IntPtr hwnd)
     {
         _mediaPlayer.Hwnd = hwnd;
-        Log($"[{_name}] attached directly to hwnd=0x{hwnd.ToInt64():X}");
     }
 
     /// <summary>Starts streaming playback of the given URL.</summary>
     public void Play(Uri url)
     {
+        if (url.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            var builder = new UriBuilder(url)
+            {
+                Scheme = Uri.UriSchemeHttp,
+                Port = url.IsDefaultPort ? -1 : url.Port,
+            };
+            url = builder.Uri;
+        }
+
         Log($"[{_name}] Play({url})");
         using var media = new Media(_libVlc!, url.AbsoluteUri, FromType.FromLocation);
 
@@ -115,12 +121,10 @@ internal sealed class VideoPlayer : IDisposable
         media.AddOption(":http-reconnect");
 
         var started = _mediaPlayer.Play(media);
-        Log($"[{_name}] MediaPlayer.Play() returned {started}, state={_mediaPlayer.State}");
     }
 
     public void Stop()
     {
-        Log($"[{_name}] Stop(), state={_mediaPlayer.State}");
         _mediaPlayer.Stop();
     }
 
@@ -130,7 +134,6 @@ internal sealed class VideoPlayer : IDisposable
             return;
         _disposed = true;
 
-        Log($"[{_name}] Dispose(), state={_mediaPlayer.State}");
         _mediaPlayer.Stop();
         _mediaPlayer.Dispose();
     }
