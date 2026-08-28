@@ -7,7 +7,9 @@
       Scope="perUser"
       UpgradeCode="D6A2D79C-6E5F-4A2A-9AC4-3C50A0EE8DF5">
     <SummaryInformation Description="Aerial Screen Saver" />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of Aerial Screen Saver is already installed." />
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of Aerial Screen Saver is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <StandardDirectory Id="LocalAppDataFolder">
