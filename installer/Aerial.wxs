@@ -47,18 +47,18 @@
         Type="string" />
     </Component>
 
-     <CustomAction
+    <CustomAction
         Id="UpdateScreenSaverSettings"
-        Directory="SystemFolder"
-        ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command &quot;$signature = '[System.Runtime.InteropServices.DllImport(''user32.dll'')] public static extern bool SystemParametersInfo(int uAction, int uParam, ref int lpvParam, int fuWinIni);'; $type = Add-Type -MemberDefinition $signature -Name 'Win32Utils' -Namespace 'Win32' -PassThru; $timeout = 300; $type::SystemParametersInfo(15, $timeout, [ref]$timeout, 3) | Out-Null; $active = 1; $type::SystemParametersInfo(17, $active, [ref]$active, 3) | Out-Null&quot;"
+      Directory="SystemFolder"
+      ExeCommand="rundll32.exe user32.dll,UpdatePerUserSystemParameters"
         Execute="commit"
         Impersonate="yes"
-        Return="ignore" />
+      Return="ignore" />
 
     <CustomAction
         Id="OpenControlPanelScreenSaver"
-        Directory="SystemFolder"
-        ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command &quot;Start-Process -WindowStyle Hidden -FilePath (Join-Path $env:WINDIR 'System32\rundll32.exe') -ArgumentList 'shell32.dll,Control_RunDLL desk.cpl,,1'&quot;"
+      Directory="SystemFolder"
+      ExeCommand="rundll32.exe shell32.dll,Control_RunDLL desk.cpl,,1"
         Execute="commit"
         Impersonate="yes"
         Return="asyncNoWait" />
