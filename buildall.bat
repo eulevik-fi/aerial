@@ -25,9 +25,9 @@ if errorlevel 1 exit /b 1
 echo.
 echo Build complete: %~dp0out\AerialApp.exe
 
-rem --- Installer (Aerial Screen Saver <VERSION>.msi) ---
-wix build --acceptEula true -arch x64 -ext WixToolset.Util.wixext -d SourceDir=%~dp0out\installer-payload -d ProductVersion=%VERSION% -o "releases\Aerial Screen Saver %VERSION%.msi" installer\Aerial.wxs
+rem --- Installer (Install Aerial Screen Saver <VERSION>.msi) ---
+wix build --acceptEula true -arch x64 -ext WixToolset.Util.wixext -d SourceDir=%~dp0out\installer-payload -d ProductVersion=%VERSION% -o "releases\Install Aerial Screen Saver %VERSION%.msi" installer\Aerial.wxs
 if errorlevel 1 exit /b 1
 echo.
-echo Installer complete: %~dp0releases\Aerial Screen Saver %VERSION%.msi
+echo Installer complete: %~dp0releases\Install Aerial Screen Saver %VERSION%.msi
 endlocal

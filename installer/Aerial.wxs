@@ -39,18 +39,33 @@
         Name="ScreenSaveActive"
         Value="1"
         Type="integer" />
+      <RegistryValue
+        Root="HKCU"
+        Key="Control Panel\Desktop"
+        Name="ScreenSaveTimeOut"
+        Value="300"
+        Type="string" />
     </Component>
 
-    <CustomAction
-        Id="BroadcastScreenSaverSettings"
+     <CustomAction
+        Id="UpdateScreenSaverSettings"
         Directory="SystemFolder"
-        ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command &quot;$signature = '[System.Runtime.InteropServices.DllImport(''user32.dll'')] public static extern bool SystemParametersInfo(int uAction, int uParam, ref int lpvParam, int fuWinIni);'; $type = Add-Type -MemberDefinition $signature -Name 'Win32Utils' -Namespace 'Win32' -PassThru; $active = 1; $type::SystemParametersInfo(17, $active, [ref]$active, 3) | Out-Null; Start-Process -WindowStyle Hidden -FilePath (Join-Path $env:WINDIR 'System32\rundll32.exe') -ArgumentList 'shell32.dll,Control_RunDLL desk.cpl,,1'&quot;"
+        ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command &quot;$signature = '[System.Runtime.InteropServices.DllImport(''user32.dll'')] public static extern bool SystemParametersInfo(int uAction, int uParam, ref int lpvParam, int fuWinIni);'; $type = Add-Type -MemberDefinition $signature -Name 'Win32Utils' -Namespace 'Win32' -PassThru; $timeout = 300; $type::SystemParametersInfo(15, $timeout, [ref]$timeout, 3) | Out-Null; $active = 1; $type::SystemParametersInfo(17, $active, [ref]$active, 3) | Out-Null&quot;"
         Execute="commit"
         Impersonate="yes"
         Return="ignore" />
 
-    <InstallExecuteSequence>
-      <Custom Action="BroadcastScreenSaverSettings" After="InstallFiles" Condition="NOT Installed" />
+    <CustomAction
+        Id="OpenControlPanelScreenSaver"
+        Directory="SystemFolder"
+        ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command &quot;Start-Process -WindowStyle Hidden -FilePath (Join-Path $env:WINDIR 'System32\rundll32.exe') -ArgumentList 'shell32.dll,Control_RunDLL desk.cpl,,1'&quot;"
+        Execute="commit"
+        Impersonate="yes"
+        Return="asyncNoWait" />
+
+   <InstallExecuteSequence>
+      <Custom Action="UpdateScreenSaverSettings" After="InstallFiles" Condition="NOT REMOVE" />
+      <Custom Action="OpenControlPanelScreenSaver" After="UpdateScreenSaverSettings" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
   </Package>
 </Wix>
