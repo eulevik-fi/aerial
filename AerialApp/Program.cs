@@ -15,6 +15,8 @@ internal static class Program
 /// </summary>
 internal static class AerialApp
 {
+    private const string CatalogUrl = "http://a1.phobos.apple.com/us/r1000/000/Features/atv/AutumnResources/videos/entries.json";
+
     [STAThread]
     private static int Main()
     {
@@ -25,9 +27,11 @@ internal static class AerialApp
 
         VideoPlayer.InitializeCore();
         Videos.InitializeAsync().GetAwaiter().GetResult();
-        VideoPlayer.Log($"Catalog loaded: {Videos.UrlValues.Count} assets");
+        var catalog = new Catalog(CatalogUrl);
+        catalog.InitializeAsync().GetAwaiter().GetResult();
+        VideoPlayer.Log($"Catalog loaded: {catalog.UrlValues.Count} assets");
 
-        Uri[] videoUrls = Videos.UrlValues
+        Uri[] videoUrls = catalog.UrlValues
             .Select(url => Uri.TryCreate(url, UriKind.Absolute, out Uri? videoUrl) ? videoUrl : null)
             .Where(videoUrl => videoUrl is not null)
             .Select(videoUrl => videoUrl!)

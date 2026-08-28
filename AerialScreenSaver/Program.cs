@@ -8,6 +8,8 @@ namespace Aerial;
 
 internal static class Program
 {
+    private const string CatalogUrl = "http://a1.phobos.apple.com/us/r1000/000/Features/atv/AutumnResources/videos/entries.json";
+
     internal const string PreviewExitEventName = "Local\\Aerial-Screensaver-Preview-Exit";
 
     [DllImport("user32.dll")]
@@ -88,8 +90,10 @@ internal static class Program
         VideoPlayer.InitializeCore();
         // Fetch (or refresh) the video catalog before showing anything.
         Videos.InitializeAsync().GetAwaiter().GetResult();
+        var catalog = new Catalog(CatalogUrl);
+        catalog.InitializeAsync().GetAwaiter().GetResult();
 
-        Uri[] videoUrls = Videos.UrlValues
+        Uri[] videoUrls = catalog.UrlValues
             .Select(url => Uri.TryCreate(url, UriKind.Absolute, out Uri? videoUrl) ? videoUrl : null)
             .Where(videoUrl => videoUrl is not null)
             .Select(videoUrl => videoUrl!)
@@ -195,8 +199,10 @@ internal static class Program
 
         VideoPlayer.InitializeCore();
         Videos.InitializeAsync().GetAwaiter().GetResult();
+        var catalog = new Catalog(CatalogUrl);
+        catalog.InitializeAsync().GetAwaiter().GetResult();
 
-        Uri[] videoUrls = Videos.UrlValues
+        Uri[] videoUrls = catalog.UrlValues
             .Select(url => Uri.TryCreate(url, UriKind.Absolute, out Uri? videoUrl) ? videoUrl : null)
             .Where(videoUrl => videoUrl is not null)
             .Select(videoUrl => videoUrl!)
