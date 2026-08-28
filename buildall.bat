@@ -1,6 +1,6 @@
 @echo off
 setlocal
-if not defined VERSION set "VERSION=1.0.1"
+if not defined VERSION set /p VERSION=<version.txt
 if not exist releases mkdir releases
 set "VCVARS=C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\Build\vcvars64.bat"
 if not exist "%VCVARS%" (

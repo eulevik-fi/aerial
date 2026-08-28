@@ -9,7 +9,6 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>AerialApp</AssemblyName>
     <RootNamespace>Aerial</RootNamespace>
-    <Version>1.0.1</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
