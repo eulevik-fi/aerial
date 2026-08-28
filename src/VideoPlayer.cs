@@ -68,25 +68,7 @@ internal sealed class VideoPlayer : IDisposable
             EnableHardwareDecoding = true,
         };
 
-        _mediaPlayer.Playing += (_, _) => Log($"[{_name}] event: Playing");
-        _mediaPlayer.TimeChanged += (_, e) =>
-        {
-            // Throttle: only log every ~5 seconds of playback.
-            if (e.Time % 5000 < 300)
-                Log($"[{_name}] event: TimeChanged t={e.Time}ms");
-        };
-        _mediaPlayer.EncounteredError += (_, _) => Log($"[{_name}] event: ENCOUNTERED_ERROR");
-        _mediaPlayer.EndReached += (_, _) =>
-        {
-            Log($"[{_name}] event: EndReached");
-            Ended?.Invoke();
-        };
-        _mediaPlayer.Buffering += (_, e) =>
-        {
-            if (e.Cache % 25 == 0)
-                Log($"[{_name}] event: Buffering {e.Cache}%");
-        };
-        _mediaPlayer.Opening += (_, _) => Log($"[{_name}] event: Opening");
+        _mediaPlayer.EndReached += (_, _) => Ended?.Invoke();
 
         Log($"[{_name}] VideoPlayer created for control {_hostControl.GetType().Name}");
     }
@@ -131,22 +113,22 @@ internal sealed class VideoPlayer : IDisposable
         _mediaPlayer.Dispose();
     }
 
-    /// <summary>
-    /// Appends a line to %LOCALAPPDATA%\Aerial\aerial-log.txt.
-    /// </summary>
-    internal static void TruncateLog()
+    internal static void PrepareLog()
     {
         try
         {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Aerial");
-            Directory.CreateDirectory(dir);
-            File.WriteAllText(Path.Combine(dir, "aerial-log.txt"), string.Empty);
+            string logPath = GetLogPath();
+            if (!File.Exists(logPath))
+                return;
+
+            if (DateTime.Now - File.GetCreationTime(logPath) > TimeSpan.FromMinutes(5))
+            {
+                File.Delete(logPath);
+                File.WriteAllText(logPath, string.Empty);
+            }
         }
         catch (IOException)
         {
-            // Logging must never break startup.
         }
     }
 
@@ -154,18 +136,22 @@ internal sealed class VideoPlayer : IDisposable
     {
         try
         {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Aerial");
-            Directory.CreateDirectory(dir);
-            File.AppendAllText(
-                Path.Combine(dir, "aerial-log.txt"),
-                $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
+            string logPath = GetLogPath();
+            File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
         }
         catch (IOException)
         {
             // Logging must never break playback.
         }
+    }
+
+    private static string GetLogPath()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Aerial");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, "aerial-log.txt");
     }
 }
 

@@ -20,6 +20,7 @@ internal static class AerialApp
     {
         ApplicationConfiguration.Initialize();
 
+        VideoPlayer.PrepareLog();
         VideoPlayer.Log("=== AerialApp starting ===");
 
         VideoPlayer.InitializeCore();

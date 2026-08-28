@@ -13,6 +13,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        VideoPlayer.PrepareLog();
         VideoPlayer.Log($"AerialScreenSaver starting. Args: [{string.Join(", ", args.Select(arg => $"\"{arg}\""))}]");
 
         ApplicationConfiguration.Initialize();
