@@ -20,7 +20,10 @@
     <Compile Include="..\src\Video.cs" Link="src\Video.cs" />
     <Compile Include="..\src\Videos.cs" Link="src\Videos.cs" />
     <Compile Include="..\src\Catalog.cs" Link="src\Catalog.cs" />
+    <Compile Include="..\src\Captions.cs" Link="src\Captions.cs" />
+    <Compile Include="..\src\CaptionsState.cs" Link="src\CaptionsState.cs" />
     <Compile Include="..\src\Downloader.cs" Link="src\Downloader.cs" />
+    <Compile Include="..\src\SRT.cs" Link="src\SRT.cs" />
     <Compile Include="..\src\VideoPlayer.cs" Link="src\VideoPlayer.cs" />
     <Compile Include="..\src\IdleExitTracker.cs" Link="src\IdleExitTracker.cs" />
     <Compile Include="..\src\VideoQueue.cs" Link="src\VideoQueue.cs" />
@@ -31,6 +34,7 @@
     <PackageReference Include="LibVLCSharp" Version="3.10.1" />
     <PackageReference Include="LibVLCSharp.WinForms" Version="3.10.1" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
+    <PackageReference Include="plist-cil" Version="2.3.1" />
   </ItemGroup>
 
 </Project>

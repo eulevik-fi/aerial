@@ -12,6 +12,9 @@ internal sealed class Downloader
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Aerial");
 
+    private const string EntriesJsonFile = "entries.json";
+    private const string LocalizableStringsFile = "Localizable.nocache.strings";
+
     public async Task<string?> DownloadAsync(string url, string cacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);
@@ -31,7 +34,7 @@ internal sealed class Downloader
             };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Aerial-Screensaver/1.0");
             content = IsTarUrl(url)
-                ? DownloadEntriesJsonFromTar(http, url)
+                ? ExtractFilesFromTar(http, url).Item1
                 : await http.GetStringAsync(url).ConfigureAwait(false);
 
             if (content is not null)
@@ -54,30 +57,88 @@ internal sealed class Downloader
         return content;
     }
 
+    /// <summary>Downloads and caches binary plist file from tar archive.</summary>
+    public async Task<byte[]?> DownloadBinaryAsync(string url, string cacheFileName)
+    {
+        Directory.CreateDirectory(CacheDirectory);
+        string cachePath = Path.Combine(CacheDirectory, cacheFileName);
+        byte[]? content = null;
+
+        try
+        {
+            using var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback =
+                    HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+            };
+            using var http = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(15),
+            };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("Aerial-Screensaver/1.0");
+
+            if (IsTarUrl(url))
+                content = ExtractFilesFromTar(http, url).Item2;
+
+            if (content is not null)
+            {
+                try
+                {
+                    await File.WriteAllBytesAsync(cachePath, content).ConfigureAwait(false);
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
+        {
+            if (File.Exists(cachePath))
+                content = await File.ReadAllBytesAsync(cachePath).ConfigureAwait(false);
+        }
+
+        return content;
+    }
+
     private static bool IsTarUrl(string url)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) &&
             uri.AbsolutePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? DownloadEntriesJsonFromTar(HttpClient http, string url)
+    private static (string? Json, byte[]? Binary) ExtractFilesFromTar(HttpClient http, string url)
     {
         byte[] archive = http.GetByteArrayAsync(url).GetAwaiter().GetResult();
         using var archiveStream = new MemoryStream(archive, writable: false);
         using var reader = new TarReader(archiveStream);
 
+        string? json = null;
+        byte[]? binary = null;
+
         TarEntry? entry;
         while ((entry = reader.GetNextEntry(copyData: true)) is not null)
         {
-            if (entry.EntryType != TarEntryType.RegularFile ||
-                !string.Equals(entry.Name, "./entries.json", StringComparison.Ordinal) ||
-                entry.DataStream is null)
+            if (entry.EntryType != TarEntryType.RegularFile || entry.DataStream is null)
                 continue;
 
-            using var contentReader = new StreamReader(entry.DataStream);
-            return contentReader.ReadToEnd();
+            if (string.Equals(entry.Name, "./entries.json", StringComparison.Ordinal))
+            {
+                using var contentReader = new StreamReader(entry.DataStream);
+                json = contentReader.ReadToEnd();
+                continue;
+            }
+
+            if (string.Equals(
+                    entry.Name,
+                    "./TVIdleScreenStrings.bundle/en.lproj/Localizable.nocache.strings",
+                    StringComparison.Ordinal))
+            {
+                using var ms = new MemoryStream();
+                entry.DataStream.CopyTo(ms);
+                binary = ms.ToArray();
+            }
         }
 
-        return null;
+        return (json, binary);
     }
 }

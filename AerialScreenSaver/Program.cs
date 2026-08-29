@@ -129,7 +129,7 @@ internal static class Program
             PreviewExitEventName);
         using var monitor = new System.Windows.Forms.Timer { Interval = 500 };
         using var player = new VideoPlayer(parentHwnd, "preview");
-        Uri video = availableVideos[Random.Shared.Next(availableVideos.Length)];
+        Video video = availableVideos[Random.Shared.Next(availableVideos.Length)];
         monitor.Tick += (_, _) =>
         {
             if (exitSignal.WaitOne(0) ||

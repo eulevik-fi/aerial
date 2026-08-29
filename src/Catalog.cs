@@ -9,6 +9,7 @@ internal sealed class Catalog
 {
     private readonly string _url;
     private readonly Downloader _downloader;
+    private Captions? _captions;
 
     public Catalog(string url, Downloader? downloader = null)
     {
@@ -20,14 +21,31 @@ internal sealed class Catalog
 
     public async Task InitializeAsync()
     {
-        string? json = await _downloader
-            .DownloadAsync(_url, "entries.json")
-            .ConfigureAwait(false);
+        // Download both files in parallel
+        var jsonTask = _downloader.DownloadAsync(_url, "entries.json");
+        var plistTask = _downloader.DownloadBinaryAsync(_url, "Localizable.nocache.strings");
 
-        Videos = ExtractVideos(json);
+        await Task.WhenAll(jsonTask, plistTask).ConfigureAwait(false);
+
+        string? json = await jsonTask;
+        byte[]? plistData = await plistTask;
+
+        string plistPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Aerial",
+            "Localizable.nocache.strings");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(plistPath)!);
+        if (plistData is not null && plistData.Length > 0)
+        {
+            await File.WriteAllBytesAsync(plistPath, plistData).ConfigureAwait(false);
+        }
+
+        _captions = new Captions(plistPath);
+        Videos = ExtractVideos(json, _captions);
     }
 
-    private static IReadOnlyList<Video> ExtractVideos(string? json)
+    private static IReadOnlyList<Video> ExtractVideos(string? json, Captions? captions)
     {
         var videos = new List<Video>();
 
@@ -37,7 +55,7 @@ internal sealed class Catalog
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
-            CollectVideoEntries(document.RootElement, videos);
+            CollectVideoEntries(document.RootElement, videos, captions);
         }
         catch (JsonException)
         {
@@ -46,48 +64,84 @@ internal sealed class Catalog
         return videos;
     }
 
-    private static void CollectVideoEntries(JsonElement element, ICollection<Video> videos)
+    private static void CollectVideoEntries(JsonElement element, ICollection<Video> videos, Captions? captions)
     {
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-                // Check if this object has url-1080-H264 and accessibilityLabel
                 string? urlValue = null;
                 string? description = null;
+                string? accessibilityLabel = null;
+                string? localizedNameKey = null;
+                var pointsOfInterest = new Dictionary<int, string>();
 
                 foreach (JsonProperty property in element.EnumerateObject())
                 {
                     if (property.NameEquals("url") && property.Value.ValueKind == JsonValueKind.String)
+                    {
                         urlValue = property.Value.GetString()!;
+                    }
+
+                    if (property.NameEquals("accessibilityLabel") && property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        accessibilityLabel = property.Value.GetString();
+                    }
 
                     if (property.NameEquals("url-1080-H264") && property.Value.ValueKind == JsonValueKind.String)
                     {
                         urlValue = property.Value.GetString()?.Replace("\\", string.Empty);
                     }
-                    
-                    if (property.NameEquals("accessibilityLabel") && property.Value.ValueKind == JsonValueKind.String)
+
+                    if (property.NameEquals("localizedNameKey") && property.Value.ValueKind == JsonValueKind.String)
                     {
-                        description = property.Value.GetString();
+                        localizedNameKey = property.Value.GetString();
+                    }
+
+                    if (property.NameEquals("pointsOfInterest") && property.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (JsonProperty point in property.Value.EnumerateObject())
+                        {
+                            if (!int.TryParse(point.Name, out int timeInSeconds))
+                                continue;
+
+                            string lookupKey = point.Value.ValueKind == JsonValueKind.String ? point.Value.GetString() ?? string.Empty : string.Empty;
+                            string localizedDescription = string.IsNullOrWhiteSpace(lookupKey)
+                                ? string.Empty
+                                : (captions?.GetDescription(lookupKey) ?? lookupKey);
+
+                            pointsOfInterest[timeInSeconds] = localizedDescription;
+                        }
                     }
                 }
 
-                // If we found both URL and description, create a Video
+                // Determine description if possible.
+                if (!string.IsNullOrWhiteSpace(localizedNameKey) && captions is not null)
+                {
+                    description = captions.GetDescription(localizedNameKey);
+                }
+
+                if (description is null && !string.IsNullOrWhiteSpace(accessibilityLabel))
+                {
+                    description = accessibilityLabel;
+                }
+
+                // If we found URL, create a Video
                 if (!string.IsNullOrWhiteSpace(urlValue) && Uri.TryCreate(urlValue, UriKind.Absolute, out Uri? uri))
                 {
-                    string desc = description ?? uri.AbsoluteUri;
-                    videos.Add(new Video(uri, desc));
+                    string desc = description ?? "";
+                    videos.Add(new Video(uri, desc, pointsOfInterest));
                 }
 
                 // Continue traversing for nested objects/arrays
                 foreach (JsonProperty property in element.EnumerateObject())
                 {
-                    CollectVideoEntries(property.Value, videos);
+                    CollectVideoEntries(property.Value, videos, captions);
                 }
                 break;
 
             case JsonValueKind.Array:
                 foreach (JsonElement child in element.EnumerateArray())
-                    CollectVideoEntries(child, videos);
+                    CollectVideoEntries(child, videos, captions);
                 break;
         }
     }

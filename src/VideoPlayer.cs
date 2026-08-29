@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using LibVLCSharp.Shared;
 
 namespace Aerial;
@@ -18,7 +19,7 @@ internal sealed class VideoPlayer : IDisposable
     private static readonly List<VideoPlayer> _allPlayers = [];
     
     /// <summary>Track whether subtitles are currently displayed across all players.</summary>
-    private static bool _subtitlesShown = false;
+    internal static bool _subtitlesShown = File.Exists(CaptionsState.GetUseCaptionsPath());
 
     private readonly MediaPlayer _mediaPlayer;
     private readonly System.Windows.Forms.Control? _hostControl;
@@ -56,14 +57,15 @@ internal sealed class VideoPlayer : IDisposable
 
         string[] subtitleOptions = new string[]
         {
-            "--freetype-font=Tahoma", // sans-serif, available
-            "--freetype-rel-fontsize=24", // small
+            "--freetype-font=Tahoma", // sans-serif, reliably available
+            "--freetype-rel-fontsize=36", // very small
             "--subsdec-align=9", // bottom left
             "--sub-margin=30", // margin padding
         };
     
         _libVlc = new LibVLC(enableDebugLogs: false,
             subtitleOptions);
+        CaptionsState.SyncSubtitleStateFromDisk();
         Log("LibVLC core initialized.");
     }
 
@@ -153,6 +155,8 @@ internal sealed class VideoPlayer : IDisposable
             url = builder.Uri;
         }
 
+        CaptionsState.SyncSubtitleStateFromDisk();
+
         Log($"[{_name}] Play({url})");
         _mediaPlayer.Stop();
         using var media = new Media(_libVlc!, url.AbsoluteUri, FromType.FromLocation);
@@ -161,6 +165,28 @@ internal sealed class VideoPlayer : IDisposable
         media.AddOption(":http-reconnect");
 
         var started = _mediaPlayer.Play(media);
+        if (_subtitlesShown)
+        {
+            var retry = new System.Windows.Forms.Timer
+            {
+                Interval = 250,
+            };
+            retry.Tick += (_, _) =>
+            {
+                try
+                {
+                    retry.Stop();
+                    retry.Dispose();
+                    if (_subtitlesShown)
+                        AddSubtitle();
+                }
+                catch (Exception ex)
+                {
+                    Log($"[{_name}] Subtitle retry failed: {ex.Message}");
+                }
+            };
+            retry.Start();
+        }
     }
 
     /// <summary>Compatibility overload for Uri (converts to Video internally).</summary>
@@ -184,16 +210,17 @@ internal sealed class VideoPlayer : IDisposable
 
         try
         {
-            // Create temporary SRT file with video description
+            // Create temporary SRT file with video description or point-of-interest captions.
             string subtitlePath = Path.Combine(
                 Path.GetTempPath(),
                 $"video-subtitle-{Guid.NewGuid()}.srt");
 
-            string srtContent = $@"1
-00:00:00,000 --> 10:00:00,000
-{_currentVideo.Description}";
+            string srtContent = _currentVideo.PointsOfInterest.Count > 0
+                ? Srt.GenerateFromPointsOfInterest(_currentVideo.PointsOfInterest)
+                : Srt.GenerateFromDescription(_currentVideo.Description);
 
             File.WriteAllText(subtitlePath, srtContent);
+            Log($"[{_name}] Generated SRT file: {subtitlePath} ({srtContent.Length} chars)");
 
             // Convert to file:// URL
             string fileUrl = new Uri(subtitlePath).AbsoluteUri;
@@ -218,6 +245,7 @@ internal sealed class VideoPlayer : IDisposable
             }
         }
         _subtitlesShown = true;
+        CaptionsState.PersistSubtitleState(_subtitlesShown);
     }
 
     /// <summary>Hide subtitles on all active players by setting SPU to -1.</summary>
@@ -234,6 +262,7 @@ internal sealed class VideoPlayer : IDisposable
             }
         }
         _subtitlesShown = false;
+        CaptionsState.PersistSubtitleState(_subtitlesShown);
     }
 
     /// <summary>Toggle subtitle display on all players between shown and hidden.</summary>

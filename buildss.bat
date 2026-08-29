@@ -15,8 +15,9 @@ if errorlevel 1 exit /b 1
 
 copy /y out\installer-payload\Aerial.exe out\installer-payload\Aerial.scr >nul
 copy /y out\installer-payload\Aerial.scr out\Aerial.scr >nul
-copy /y "Setup Aerial.vbs" "out\installer-payload\Setup Aerial.vbs" >nul
-copy /y Aerial.ico out\installer-payload\Aerial.ico >nul
+copy /y "installer\Setup Aerial.vbs" "out\installer-payload\Setup Aerial.vbs" >nul
+copy /y "installer\Aerial.ico" out\installer-payload\Aerial.ico >nul
+copy /y "installer\Aerial.png" out\installer-payload\Aerial.png >nul
 echo.
 echo Build complete: %~dp0out\installer-payload\Aerial.scr
 endlocal
