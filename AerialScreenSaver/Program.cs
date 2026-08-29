@@ -101,114 +101,15 @@ internal static class Program
             .Distinct()
             .ToArray();
 
-        var initialVideos = videoUrls
-            .Where(video => !Videos.IsInMru(video))
-            .ToList();
-
-        if (initialVideos.Count == 0)
-            return;
-
-        for (int index = initialVideos.Count - 1; index > 0; index--)
-        {
-            int swapIndex = Random.Shared.Next(index + 1);
-            (initialVideos[index], initialVideos[swapIndex]) =
-                (initialVideos[swapIndex], initialVideos[index]);
-        }
-
         using var idleTracker = new IdleExitTracker();
-
-        var forms = new List<ScreensaverForm>();
-        var players = new List<VideoPlayer>();
-        var activeVideos = new HashSet<Uri>();
-        var videoGate = new object();
-
-        foreach (Screen screen in Screen.AllScreens)
-        {
-            var form = new ScreensaverForm(screen);
-            var videoView = new VideoView
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.Black,
-            };
-            form.Controls.Add(videoView);
-
-            var player = new VideoPlayer(videoView, $"screen{forms.Count}");
-            players.Add(player);
-            int nextVideoQueued = 0;
-            Uri currentVideo;
-            lock (videoGate)
-            {
-                currentVideo = initialVideos[forms.Count % initialVideos.Count];
-                activeVideos.Add(currentVideo);
-            }
-
-            void PlayNextVideo()
-            {
-                Uri? nextVideo;
-                lock (videoGate)
-                {
-                    activeVideos.Remove(currentVideo);
-                    nextVideo = Videos.SelectNextVideo(videoUrls, currentVideo, activeVideos);
-                    if (nextVideo is not null)
-                    {
-                        currentVideo = nextVideo;
-                        activeVideos.Add(currentVideo);
-                    }
-                }
-
-                if (nextVideo is null)
-                    return;
-
-                Videos.RecordPlayed(nextVideo);
-                player.Play(nextVideo);
-            }
-
-            void QueueNextVideo()
-            {
-                if (Interlocked.Exchange(ref nextVideoQueued, 1) != 0 ||
-                    form.IsDisposed)
-                    return;
-
-                form.BeginInvoke((Action)(() =>
-                {
-                    Interlocked.Exchange(ref nextVideoQueued, 0);
-                    PlayNextVideo();
-                }));
-            }
-
-            player.Ended += QueueNextVideo;
-            player.Failed += QueueNextVideo;
-
-            form.Shown += (_, _) =>
-            {
-                player.Attach();
-                Videos.RecordPlayed(currentVideo);
-                player.Play(currentVideo);
-            };
-            forms.Add(form);
-        }
-
-        // Show all forms before entering the message loop so every display
-        // paints its black surface simultaneously.
-        foreach (var form in forms)
-        {
-            form.Show();
-        }
+        var queue = new VideoQueue(videoUrls);
+        if (!queue.Start())
+            return;
 
         idleTracker.Start();
 
         Application.Run();
-
-        foreach (var player in players)
-            player.BeginShutdown();
-
-        foreach (var player in players)
-            player.Dispose();
-
-        foreach (var form in forms)
-        {
-            form.Dispose();
-        }
+        queue.Dispose();
     }
 
     /// <summary>/p &lt;hwnd&gt; - render inside the little preview window of the

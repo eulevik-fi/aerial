@@ -22,6 +22,7 @@
     <Compile Include="..\src\Downloader.cs" Link="src\Downloader.cs" />
     <Compile Include="..\src\VideoPlayer.cs" Link="src\VideoPlayer.cs" />
     <Compile Include="..\src\IdleExitTracker.cs" Link="src\IdleExitTracker.cs" />
+    <Compile Include="..\src\VideoQueue.cs" Link="src\VideoQueue.cs" />
 
   </ItemGroup>
 
