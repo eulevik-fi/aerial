@@ -17,8 +17,10 @@ internal sealed class VideoPlayer : IDisposable
     private readonly System.Windows.Forms.Control? _hostControl;
     private readonly string _name;
     private bool _disposed;
+    private volatile bool _shuttingDown;
 
     public event Action? Ended;
+    public event Action? Failed;
 
     /// <summary>
     /// Initializes the LibVLC core. Call once at startup, before creating any
@@ -81,7 +83,16 @@ internal sealed class VideoPlayer : IDisposable
             EnableHardwareDecoding = true,
         };
 
-        _mediaPlayer.EndReached += (_, _) => Ended?.Invoke();
+        _mediaPlayer.EndReached += (_, _) =>
+        {
+            if (!_shuttingDown)
+                Ended?.Invoke();
+        };
+        _mediaPlayer.EncounteredError += (_, _) =>
+        {
+            if (!_shuttingDown)
+                Failed?.Invoke();
+        };
     }
 
     /// <summary>
@@ -104,6 +115,9 @@ internal sealed class VideoPlayer : IDisposable
     /// <summary>Starts streaming playback of the given URL.</summary>
     public void Play(Uri url)
     {
+        if (_shuttingDown || _disposed)
+            return;
+
         if (url.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
             var builder = new UriBuilder(url)
@@ -115,6 +129,7 @@ internal sealed class VideoPlayer : IDisposable
         }
 
         Log($"[{_name}] Play({url})");
+        _mediaPlayer.Stop();
         using var media = new Media(_libVlc!, url.AbsoluteUri, FromType.FromLocation);
 
         media.AddOption(":no-gnutls-system-trust");
@@ -125,13 +140,21 @@ internal sealed class VideoPlayer : IDisposable
 
     public void Stop()
     {
+        BeginShutdown();
         _mediaPlayer.Stop();
+    }
+
+    public void BeginShutdown()
+    {
+        _shuttingDown = true;
     }
 
     public void Dispose()
     {
         if (_disposed)
             return;
+
+        BeginShutdown();
         _disposed = true;
 
         _mediaPlayer.Stop();

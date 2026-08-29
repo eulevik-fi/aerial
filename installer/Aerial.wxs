@@ -11,6 +11,7 @@
       AllowSameVersionUpgrades="yes"
       DowngradeErrorMessage="A newer version of Aerial Screen Saver is already installed." />
     <MediaTemplate EmbedCab="yes" />
+    <Icon Id="AerialIcon" SourceFile="$(var.SourceDir)\Aerial.ico" />
 
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="PROGRAMSDIR" Name="Programs">
@@ -22,52 +23,48 @@
       </Directory>
     </StandardDirectory>
 
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="PROGRAMMENUAERIALFOLDER" Name="Aerial Screen Saver" />
+    </StandardDirectory>
+
     <Feature Id="MainFeature" Title="Aerial Screen Saver" Level="1">
-      <ComponentRef Id="ScreenSaverRegistration" />
-      <Files Include="$(var.SourceDir)\**" Directory="INSTALLFOLDER" />
+      <ComponentRef Id="RegisterScreensaverShortcut" />
+      <Files Include="$(var.SourceDir)\**" Directory="INSTALLFOLDER">
+        <Exclude Files="$(var.SourceDir)\Setup Aerial.vbs" />
+      </Files>
     </Feature>
 
-    <Component Id="ScreenSaverRegistration" Directory="INSTALLFOLDER" Guid="*">
-      <RegistryValue
-        Root="HKCU"
-        Key="Control Panel\Desktop"
-        Name="SCRNSAVE.EXE"
-          Value="[INSTALLFOLDER]Aerial.scr"
-          Type="string"
-          KeyPath="yes" />
-      <RegistryValue
-        Root="HKCU"
-        Key="Control Panel\Desktop"
-        Name="ScreenSaveActive"
-        Value="1"
-        Type="integer" />
-      <RegistryValue
-        Root="HKCU"
-        Key="Control Panel\Desktop"
-        Name="ScreenSaveTimeOut"
-        Value="300"
-        Type="string" />
+    <Component Id="RegisterScreensaverShortcut" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="RegisterScreensaverLauncher" Source="$(var.SourceDir)\Setup Aerial.vbs" />
+      <Shortcut
+        Id="SetupAerialDesktopShortcut"
+        Directory="DesktopFolder"
+        Name="Setup Aerial"
+        Target="[SystemFolder]wscript.exe"
+        Arguments="&quot;[INSTALLFOLDER]Setup Aerial.vbs&quot;"
+        Icon="AerialIcon"
+        WorkingDirectory="INSTALLFOLDER" />
+      <Shortcut
+        Id="SetupAerialStartMenuShortcut"
+        Directory="PROGRAMMENUAERIALFOLDER"
+        Name="Setup Aerial"
+        Target="[SystemFolder]wscript.exe"
+        Arguments="&quot;[INSTALLFOLDER]Setup Aerial.vbs&quot;"
+        Icon="AerialIcon"
+        WorkingDirectory="INSTALLFOLDER" />
     </Component>
-
+    
     <CustomAction
-        Id="UpdateScreenSaverSettings"
-      Directory="SystemFolder"
-      ExeCommand="rundll32.exe user32.dll,UpdatePerUserSystemParameters"
-        Execute="commit"
-        Impersonate="yes"
-      Return="ignore" />
-
-    <CustomAction
-        Id="OpenControlPanelScreenSaver"
-      Directory="SystemFolder"
-      ExeCommand="rundll32.exe shell32.dll,Control_RunDLL desk.cpl,,1"
+        Id="RunSetupAerial"
+        Directory="SystemFolder"
+        ExeCommand="wscript.exe &quot;[INSTALLFOLDER]Setup Aerial.vbs&quot;"
         Execute="commit"
         Impersonate="yes"
         Return="asyncNoWait" />
-
-   <InstallExecuteSequence>
-      <Custom Action="UpdateScreenSaverSettings" After="InstallFiles" Condition="NOT REMOVE" />
-      <Custom Action="OpenControlPanelScreenSaver" After="UpdateScreenSaverSettings" Condition="NOT REMOVE" />
+    
+    <InstallExecuteSequence>
+      <Custom Action="RunSetupAerial" Before="InstallFinalize" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
+
   </Package>
 </Wix>

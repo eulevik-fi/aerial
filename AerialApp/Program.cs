@@ -72,6 +72,7 @@ internal static class AerialApp
 
             var player = new VideoPlayer(videoView, $"screen{forms.Count}");
             players.Add(player);
+            int nextVideoQueued = 0;
             Uri currentVideo;
             lock (videoGate)
             {
@@ -79,7 +80,7 @@ internal static class AerialApp
                 activeVideos.Add(currentVideo);
             }
 
-            player.Ended += () =>
+            void PlayNextVideo()
             {
                 Uri? nextVideo;
                 lock (videoGate)
@@ -98,7 +99,23 @@ internal static class AerialApp
 
                 Videos.RecordPlayed(nextVideo);
                 player.Play(nextVideo);
-            };
+            }
+
+            void QueueNextVideo()
+            {
+                if (Interlocked.Exchange(ref nextVideoQueued, 1) != 0 ||
+                    form.IsDisposed)
+                    return;
+
+                form.BeginInvoke((Action)(() =>
+                {
+                    Interlocked.Exchange(ref nextVideoQueued, 0);
+                    PlayNextVideo();
+                }));
+            }
+
+            player.Ended += QueueNextVideo;
+            player.Failed += QueueNextVideo;
 
             form.Shown += (_, _) =>
             {
@@ -115,6 +132,9 @@ internal static class AerialApp
 
         idleTracker.Start();
         Application.Run();
+
+        foreach (var player in players)
+            player.BeginShutdown();
 
         foreach (var player in players)
             player.Dispose();

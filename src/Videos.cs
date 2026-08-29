@@ -52,6 +52,7 @@ internal static class Videos
     /// <summary>Records a started URL, keeping the 10 most recent entries.</summary>
     public static void RecordPlayed(Uri url)
     {
+        string[] recentVideos;
         lock (MruGate)
         {
             RecentVideos.RemoveAll(existing =>
@@ -59,15 +60,16 @@ internal static class Videos
             RecentVideos.Insert(0, url.AbsoluteUri);
             if (RecentVideos.Count > 10)
                 RecentVideos.RemoveRange(10, RecentVideos.Count - 10);
+            recentVideos = RecentVideos.ToArray();
+        }
 
-            try
-            {
-                File.WriteAllLines(MruPath, RecentVideos);
-            }
-            catch (IOException)
-            {
-                // Persistence is best-effort; retain the in-memory MRU.
-            }
+        try
+        {
+            File.WriteAllLines(MruPath, recentVideos);
+        }
+        catch (IOException)
+        {
+            // Persistence is best-effort; retain the in-memory MRU.
         }
     }
 
