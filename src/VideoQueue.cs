@@ -8,17 +8,23 @@ namespace Aerial;
 
 internal sealed class VideoQueue : IDisposable
 {
-    private readonly IReadOnlyList<Uri> _videoUrls;
+    private readonly IReadOnlyList<Video> _videos;
     private readonly List<ScreensaverForm> _forms = [];
     private readonly List<VideoPlayer> _players = [];
-    private readonly HashSet<Uri> _activeVideos = [];
+    private readonly HashSet<Video> _activeVideos = [];
     private readonly object _videoGate = new();
     private bool _started;
     private bool _disposed;
 
-    public VideoQueue(IReadOnlyList<Uri> videoUrls)
+    public VideoQueue(IReadOnlyList<Video> videos)
     {
-        _videoUrls = videoUrls;
+        _videos = videos;
+    }
+
+    /// <summary>Compatibility constructor that converts Uri list to Video list.</summary>
+    public VideoQueue(IReadOnlyList<Uri> videoUrls)
+        : this(videoUrls.Select(url => new Video(url)).ToList())
+    {
     }
 
     public bool Start()
@@ -27,7 +33,7 @@ internal sealed class VideoQueue : IDisposable
             return _forms.Count > 0;
 
         _started = true;
-        var initialVideos = _videoUrls
+        var initialVideos = _videos
             .Where(video => !Videos.IsInMru(video))
             .ToList();
 
@@ -53,8 +59,9 @@ internal sealed class VideoQueue : IDisposable
 
             var player = new VideoPlayer(videoView, $"screen{_forms.Count}");
             _players.Add(player);
+            form.VideoPlayer = player;  // Connect player to form for shift key handling
             int nextVideoQueued = 0;
-            Uri currentVideo;
+            Video currentVideo;
             lock (_videoGate)
             {
                 currentVideo = initialVideos[_forms.Count % initialVideos.Count];
@@ -63,11 +70,11 @@ internal sealed class VideoQueue : IDisposable
 
             void PlayNextVideo()
             {
-                Uri? nextVideo;
+                Video? nextVideo;
                 lock (_videoGate)
                 {
                     _activeVideos.Remove(currentVideo);
-                    nextVideo = Videos.SelectNextVideo(_videoUrls, currentVideo, _activeVideos);
+                    nextVideo = Videos.SelectNextVideo(_videos, currentVideo, _activeVideos);
                     if (nextVideo is not null)
                     {
                         currentVideo = nextVideo;

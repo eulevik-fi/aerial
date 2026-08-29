@@ -94,15 +94,8 @@ internal static class Program
         var catalog = new Catalog(CatalogUrl);
         catalog.InitializeAsync().GetAwaiter().GetResult();
 
-        Uri[] videoUrls = catalog.UrlValues
-            .Select(url => Uri.TryCreate(url, UriKind.Absolute, out Uri? videoUrl) ? videoUrl : null)
-            .Where(videoUrl => videoUrl is not null)
-            .Select(videoUrl => videoUrl!)
-            .Distinct()
-            .ToArray();
-
         using var idleTracker = new IdleExitTracker();
-        var queue = new VideoQueue(videoUrls);
+        var queue = new VideoQueue(catalog.Videos);
         if (!queue.Start())
             return;
 
@@ -124,14 +117,7 @@ internal static class Program
         var catalog = new Catalog(CatalogUrl);
         catalog.InitializeAsync().GetAwaiter().GetResult();
 
-        Uri[] videoUrls = catalog.UrlValues
-            .Select(url => Uri.TryCreate(url, UriKind.Absolute, out Uri? videoUrl) ? videoUrl : null)
-            .Where(videoUrl => videoUrl is not null)
-            .Select(videoUrl => videoUrl!)
-            .Distinct()
-            .ToArray();
-
-        var availableVideos = videoUrls
+        var availableVideos = catalog.Videos
             .Where(video => !Videos.IsInMru(video))
             .ToArray();
         if (availableVideos.Length == 0)

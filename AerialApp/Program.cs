@@ -31,17 +31,10 @@ internal static class AerialApp
         VideoPlayer.Log($"Catalog URL: {CatalogUrl}");
         var catalog = new Catalog(CatalogUrl);
         catalog.InitializeAsync().GetAwaiter().GetResult();
-        VideoPlayer.Log($"Catalog loaded: {catalog.UrlValues.Count} assets");
-
-        Uri[] videoUrls = catalog.UrlValues
-            .Select(url => Uri.TryCreate(url, UriKind.Absolute, out Uri? videoUrl) ? videoUrl : null)
-            .Where(videoUrl => videoUrl is not null)
-            .Select(videoUrl => videoUrl!)
-            .Distinct()
-            .ToArray();
+        VideoPlayer.Log($"Catalog loaded: {catalog.Videos.Count} assets");
 
         using var idleTracker = new IdleExitTracker();
-        var queue = new VideoQueue(videoUrls);
+        var queue = new VideoQueue(catalog.Videos);
         if (!queue.Start())
             return 0;
 

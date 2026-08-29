@@ -12,10 +12,20 @@ internal sealed class ScreensaverForm : Form
 {
     private readonly Screen _screen;
     private bool _closed;
+    private bool _shiftKeyDown;
+    private VideoPlayer? _videoPlayer;
+
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public VideoPlayer? VideoPlayer
+    {
+        get => _videoPlayer;
+        set => _videoPlayer = value;
+    }
 
     public ScreensaverForm(Screen screen)
     {
         _screen = screen;
+        _shiftKeyDown = false;
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
@@ -69,8 +79,37 @@ internal sealed class ScreensaverForm : Form
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (IsShiftKey(e))
+        {
+            if (!_shiftKeyDown)
+            {
+                _shiftKeyDown = true;
+                VideoPlayer.ToggleSubtitles();
+            }
+            return;
+        }
+
         CloseAll();
         base.OnKeyDown(e);
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        if (IsShiftKey(e))
+        {
+            if (_shiftKeyDown)
+            {
+                _shiftKeyDown = false;
+            }
+            return;
+        }
+
+        base.OnKeyUp(e);
+    }
+
+    private bool IsShiftKey(KeyEventArgs e)
+    {
+        return e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.LShiftKey || e.KeyCode == Keys.RShiftKey;
     }
 
     protected override void OnMouseDown(MouseEventArgs e)

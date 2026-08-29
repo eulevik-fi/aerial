@@ -25,6 +25,15 @@ internal static class Videos
         LoadMru();
     }
 
+    public static bool IsInMru(Video video)
+    {
+        lock (MruGate)
+        {
+            return RecentVideos.Contains(video.Url.AbsoluteUri, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>Compatibility overload for Uri.</summary>
     public static bool IsInMru(Uri url)
     {
         lock (MruGate)
@@ -33,6 +42,23 @@ internal static class Videos
         }
     }
 
+    public static Video? SelectNextVideo(
+        IReadOnlyList<Video> videos,
+        Video current,
+        HashSet<Video> activeVideos)
+    {
+        var availableVideos = videos
+            .Where(video => video != current &&
+                            !activeVideos.Contains(video) &&
+                            !IsInMru(video))
+            .ToArray();
+
+        return availableVideos.Length == 0
+            ? null
+            : availableVideos[Random.Shared.Next(availableVideos.Length)];
+    }
+
+    /// <summary>Compatibility overload for Uri list.</summary>
     public static Uri? SelectNextVideo(
         IReadOnlyList<Uri> videoUrls,
         Uri current,
@@ -49,7 +75,31 @@ internal static class Videos
             : availableVideos[Random.Shared.Next(availableVideos.Length)];
     }
 
-    /// <summary>Records a started URL, keeping the 10 most recent entries.</summary>
+    /// <summary>Records a played video, keeping the 10 most recent entries.</summary>
+    public static void RecordPlayed(Video video)
+    {
+        string[] recentVideos;
+        lock (MruGate)
+        {
+            RecentVideos.RemoveAll(existing =>
+                string.Equals(existing, video.Url.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
+            RecentVideos.Insert(0, video.Url.AbsoluteUri);
+            if (RecentVideos.Count > 10)
+                RecentVideos.RemoveRange(10, RecentVideos.Count - 10);
+            recentVideos = RecentVideos.ToArray();
+        }
+
+        try
+        {
+            File.WriteAllLines(MruPath, recentVideos);
+        }
+        catch (IOException)
+        {
+            // Persistence is best-effort; retain the in-memory MRU.
+        }
+    }
+
+    /// <summary>Compatibility overload for Uri.</summary>
     public static void RecordPlayed(Uri url)
     {
         string[] recentVideos;

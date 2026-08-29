@@ -16,7 +16,7 @@ internal sealed class Catalog
         _downloader = downloader ?? new Downloader();
     }
 
-    public IReadOnlyList<string> UrlValues { get; private set; } = [];
+    public IReadOnlyList<Video> Videos { get; private set; } = [];
 
     public async Task InitializeAsync()
     {
@@ -24,54 +24,70 @@ internal sealed class Catalog
             .DownloadAsync(_url, "entries.json")
             .ConfigureAwait(false);
 
-        UrlValues = ExtractUrlValues(json);
+        Videos = ExtractVideos(json);
     }
 
-    private static IReadOnlyList<string> ExtractUrlValues(string? json)
+    private static IReadOnlyList<Video> ExtractVideos(string? json)
     {
-        var urls = new List<string>();
+        var videos = new List<Video>();
 
         if (string.IsNullOrWhiteSpace(json))
-            return urls;
+            return videos;
 
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
-            CollectUrlValues(document.RootElement, urls);
+            CollectVideoEntries(document.RootElement, videos);
         }
         catch (JsonException)
         {
         }
 
-        return urls;
+        return videos;
     }
 
-    private static void CollectUrlValues(JsonElement element, ICollection<string> urls)
+    private static void CollectVideoEntries(JsonElement element, ICollection<Video> videos)
     {
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
+                // Check if this object has url-1080-H264 and accessibilityLabel
+                string? urlValue = null;
+                string? description = null;
+
                 foreach (JsonProperty property in element.EnumerateObject())
                 {
                     if (property.NameEquals("url") && property.Value.ValueKind == JsonValueKind.String)
-                        urls.Add(property.Value.GetString()!);
+                        urlValue = property.Value.GetString()!;
 
                     if (property.NameEquals("url-1080-H264") && property.Value.ValueKind == JsonValueKind.String)
-                        urls.Add(property.Value.GetString()!.Replace("\\", string.Empty));
-
-                    // url-1080-H264
-                    // url-1080-SDR
-                    // url-1080-HDR
-                    // url-4K-HDR
-                    // url-4K-SDR
+                    {
+                        urlValue = property.Value.GetString()?.Replace("\\", string.Empty);
+                    }
                     
-                    CollectUrlValues(property.Value, urls);
+                    if (property.NameEquals("accessibilityLabel") && property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        description = property.Value.GetString();
+                    }
+                }
+
+                // If we found both URL and description, create a Video
+                if (!string.IsNullOrWhiteSpace(urlValue) && Uri.TryCreate(urlValue, UriKind.Absolute, out Uri? uri))
+                {
+                    string desc = description ?? uri.AbsoluteUri;
+                    videos.Add(new Video(uri, desc));
+                }
+
+                // Continue traversing for nested objects/arrays
+                foreach (JsonProperty property in element.EnumerateObject())
+                {
+                    CollectVideoEntries(property.Value, videos);
                 }
                 break;
 
             case JsonValueKind.Array:
                 foreach (JsonElement child in element.EnumerateArray())
-                    CollectUrlValues(child, urls);
+                    CollectVideoEntries(child, videos);
                 break;
         }
     }

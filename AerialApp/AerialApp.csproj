@@ -16,6 +16,7 @@
   <ItemGroup>
     <!-- Shared sources live in ..\src -->
     <Compile Include="..\src\ScreensaverForm.cs" Link="src\ScreensaverForm.cs" />
+    <Compile Include="..\src\Video.cs" Link="src\Video.cs" />
     <Compile Include="..\src\Videos.cs" Link="src\Videos.cs" />
     <Compile Include="..\src\Catalog.cs" Link="src\Catalog.cs" />
     <Compile Include="..\src\Downloader.cs" Link="src\Downloader.cs" />

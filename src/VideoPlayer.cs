@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using LibVLCSharp.Shared;
 
@@ -12,12 +13,19 @@ internal sealed class VideoPlayer : IDisposable
 {
     /// <summary>Shared LibVLC core - initialize once per process.</summary>
     private static LibVLC? _libVlc;
+    
+    /// <summary>Track all active VideoPlayer instances for global subtitle control.</summary>
+    private static readonly List<VideoPlayer> _allPlayers = [];
+    
+    /// <summary>Track whether subtitles are currently displayed across all players.</summary>
+    private static bool _subtitlesShown = false;
 
     private readonly MediaPlayer _mediaPlayer;
     private readonly System.Windows.Forms.Control? _hostControl;
     private readonly string _name;
     private bool _disposed;
     private volatile bool _shuttingDown;
+    private Video? _currentVideo;
 
     public event Action? Ended;
     public event Action? Failed;
@@ -46,8 +54,16 @@ internal sealed class VideoPlayer : IDisposable
             Log($"WARNING: native libvlc directory missing: {libDir}");
         }
 
+        string[] subtitleOptions = new string[]
+        {
+            "--freetype-font=Tahoma", // sans-serif, available
+            "--freetype-rel-fontsize=24", // small
+            "--subsdec-align=9", // bottom left
+            "--sub-margin=30", // margin padding
+        };
+    
         _libVlc = new LibVLC(enableDebugLogs: false,
-            "");
+            subtitleOptions);
         Log("LibVLC core initialized.");
     }
 
@@ -93,6 +109,12 @@ internal sealed class VideoPlayer : IDisposable
             if (!_shuttingDown)
                 Failed?.Invoke();
         };
+        
+        // Register this player in the global list
+        lock (_allPlayers)
+        {
+            _allPlayers.Add(this);
+        }
     }
 
     /// <summary>
@@ -112,12 +134,15 @@ internal sealed class VideoPlayer : IDisposable
         _mediaPlayer.Hwnd = hwnd;
     }
 
-    /// <summary>Starts streaming playback of the given URL.</summary>
-    public void Play(Uri url)
+    /// <summary>Starts streaming playback of the given video.</summary>
+    public void Play(Video video)
     {
-        if (_shuttingDown || _disposed)
+        if (_shuttingDown || _disposed || video is null)
             return;
 
+        _currentVideo = video;
+        var url = video.Url;
+        
         if (url.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
             var builder = new UriBuilder(url)
@@ -138,10 +163,90 @@ internal sealed class VideoPlayer : IDisposable
         var started = _mediaPlayer.Play(media);
     }
 
+    /// <summary>Compatibility overload for Uri (converts to Video internally).</summary>
+    public void Play(Uri url)
+    {
+        if (url is null)
+            return;
+        Play(new Video(url));
+    }
+
     public void Stop()
     {
         BeginShutdown();
         _mediaPlayer.Stop();
+    }
+
+    public void AddSubtitle()
+    {
+        if (_shuttingDown || _disposed || _mediaPlayer.Media is null || _currentVideo is null)
+            return;
+
+        try
+        {
+            // Create temporary SRT file with video description
+            string subtitlePath = Path.Combine(
+                Path.GetTempPath(),
+                $"video-subtitle-{Guid.NewGuid()}.srt");
+
+            string srtContent = $@"1
+00:00:00,000 --> 10:00:00,000
+{_currentVideo.Description}";
+
+            File.WriteAllText(subtitlePath, srtContent);
+
+            // Convert to file:// URL
+            string fileUrl = new Uri(subtitlePath).AbsoluteUri;
+
+            // AddSlave with select=true
+            _mediaPlayer.AddSlave(MediaSlaveType.Subtitle, fileUrl, select: true);
+        }
+        catch (Exception ex)
+        {
+            Log($"[{_name}] Failed to add subtitle: {ex.Message}");
+        }
+    }
+
+    /// <summary>Add subtitle to all active players.</summary>
+    public static void AddSubtitleToAll()
+    {
+        lock (_allPlayers)
+        {
+            foreach (var player in _allPlayers)
+            {
+                player.AddSubtitle();
+            }
+        }
+        _subtitlesShown = true;
+    }
+
+    /// <summary>Hide subtitles on all active players by setting SPU to -1.</summary>
+    public static void HideSubtitlesFromAll()
+    {
+        lock (_allPlayers)
+        {
+            foreach (var player in _allPlayers)
+            {
+                if (!player._shuttingDown && !player._disposed)
+                {
+                    player._mediaPlayer.SetSpu(-1);
+                }
+            }
+        }
+        _subtitlesShown = false;
+    }
+
+    /// <summary>Toggle subtitle display on all players between shown and hidden.</summary>
+    public static void ToggleSubtitles()
+    {
+        if (_subtitlesShown)
+        {
+            HideSubtitlesFromAll();
+        }
+        else
+        {
+            AddSubtitleToAll();
+        }
     }
 
     public void BeginShutdown()
@@ -159,6 +264,12 @@ internal sealed class VideoPlayer : IDisposable
 
         _mediaPlayer.Stop();
         _mediaPlayer.Dispose();
+        
+        // Unregister from the global list
+        lock (_allPlayers)
+        {
+            _allPlayers.Remove(this);
+        }
     }
 
     internal static void PrepareLog()
