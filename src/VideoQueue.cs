@@ -34,7 +34,7 @@ internal sealed class VideoQueue : IDisposable
 
         _started = true;
         var initialVideos = _videos
-            .Where(video => !Videos.IsInMru(video))
+            .Where(video => !VideoController.IsInMru(video))
             .ToList();
 
         if (initialVideos.Count == 0)
@@ -74,7 +74,7 @@ internal sealed class VideoQueue : IDisposable
                 lock (_videoGate)
                 {
                     _activeVideos.Remove(currentVideo);
-                    nextVideo = Videos.SelectNextVideo(_videos, currentVideo, _activeVideos);
+                    nextVideo = VideoController.SelectNextVideo(_videos, currentVideo, _activeVideos);
                     if (nextVideo is not null)
                     {
                         currentVideo = nextVideo;
@@ -85,7 +85,7 @@ internal sealed class VideoQueue : IDisposable
                 if (nextVideo is null || _disposed)
                     return;
 
-                Videos.RecordPlayed(nextVideo);
+                VideoController.RecordPlayed(nextVideo);
                 player.Play(nextVideo);
             }
 
@@ -120,7 +120,7 @@ internal sealed class VideoQueue : IDisposable
                     return;
 
                 player.Attach();
-                Videos.RecordPlayed(currentVideo);
+                VideoController.RecordPlayed(currentVideo);
                 player.Play(currentVideo);
             };
             _forms.Add(form);

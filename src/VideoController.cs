@@ -8,7 +8,7 @@ namespace Aerial;
 /// Downloads the Apple Aerial video catalog (entries.json), caches it on disk
 /// so subsequent runs can work offline, and extracts URL values from it.
 /// </summary>
-internal static class Videos
+internal static class VideoController
 {
     private static readonly string CacheDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

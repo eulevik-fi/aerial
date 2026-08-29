@@ -216,8 +216,8 @@ internal sealed class VideoPlayer : IDisposable
                 $"video-subtitle-{Guid.NewGuid()}.srt");
 
             string srtContent = _currentVideo.PointsOfInterest.Count > 0
-                ? Srt.GenerateFromPointsOfInterest(_currentVideo.PointsOfInterest)
-                : Srt.GenerateFromDescription(_currentVideo.Description);
+                ? SrtGeneration.GenerateFromPointsOfInterest(_currentVideo.PointsOfInterest)
+                : SrtGeneration.GenerateFromDescription(_currentVideo.Description);
 
             File.WriteAllText(subtitlePath, srtContent);
             Log($"[{_name}] Generated SRT file: {subtitlePath} ({srtContent.Length} chars)");

@@ -5,13 +5,13 @@ using System.Threading.Tasks;
 
 namespace Aerial;
 
-internal sealed class Catalog
+internal sealed class VideoCatalog
 {
     private readonly string _url;
     private readonly Downloader _downloader;
-    private Captions? _captions;
+    private LocalizableStrings? _localizableStrings;
 
-    public Catalog(string url, Downloader? downloader = null)
+    public VideoCatalog(string url, Downloader? downloader = null)
     {
         _url = url;
         _downloader = downloader ?? new Downloader();
@@ -41,11 +41,11 @@ internal sealed class Catalog
             await File.WriteAllBytesAsync(plistPath, plistData).ConfigureAwait(false);
         }
 
-        _captions = new Captions(plistPath);
-        Videos = ExtractVideos(json, _captions);
+        _localizableStrings = new LocalizableStrings(plistPath);
+        Videos = ExtractVideos(json, _localizableStrings);
     }
 
-    private static IReadOnlyList<Video> ExtractVideos(string? json, Captions? captions)
+    private static IReadOnlyList<Video> ExtractVideos(string? json, LocalizableStrings? localizableStrings)
     {
         var videos = new List<Video>();
 
@@ -55,7 +55,7 @@ internal sealed class Catalog
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
-            CollectVideoEntries(document.RootElement, videos, captions);
+            CollectVideoEntries(document.RootElement, videos, localizableStrings);
         }
         catch (JsonException)
         {
@@ -64,7 +64,7 @@ internal sealed class Catalog
         return videos;
     }
 
-    private static void CollectVideoEntries(JsonElement element, ICollection<Video> videos, Captions? captions)
+    private static void CollectVideoEntries(JsonElement element, ICollection<Video> videos, LocalizableStrings? localizableStrings)
     {
         switch (element.ValueKind)
         {
@@ -107,7 +107,7 @@ internal sealed class Catalog
                             string lookupKey = point.Value.ValueKind == JsonValueKind.String ? point.Value.GetString() ?? string.Empty : string.Empty;
                             string localizedDescription = string.IsNullOrWhiteSpace(lookupKey)
                                 ? string.Empty
-                                : (captions?.GetDescription(lookupKey) ?? lookupKey);
+                                : (localizableStrings?.GetDescription(lookupKey) ?? lookupKey);
 
                             pointsOfInterest[timeInSeconds] = localizedDescription;
                         }
@@ -115,9 +115,9 @@ internal sealed class Catalog
                 }
 
                 // Determine description if possible.
-                if (!string.IsNullOrWhiteSpace(localizedNameKey) && captions is not null)
+                if (!string.IsNullOrWhiteSpace(localizedNameKey) && localizableStrings is not null)
                 {
-                    description = captions.GetDescription(localizedNameKey);
+                    description = localizableStrings.GetDescription(localizedNameKey);
                 }
 
                 if (description is null && !string.IsNullOrWhiteSpace(accessibilityLabel))
@@ -135,13 +135,13 @@ internal sealed class Catalog
                 // Continue traversing for nested objects/arrays
                 foreach (JsonProperty property in element.EnumerateObject())
                 {
-                    CollectVideoEntries(property.Value, videos, captions);
+                    CollectVideoEntries(property.Value, videos, localizableStrings);
                 }
                 break;
 
             case JsonValueKind.Array:
                 foreach (JsonElement child in element.EnumerateArray())
-                    CollectVideoEntries(child, videos, captions);
+                    CollectVideoEntries(child, videos, localizableStrings);
                 break;
         }
     }

@@ -18,12 +18,12 @@
     <!-- Shared sources live in ..\src -->
     <Compile Include="..\src\ScreensaverForm.cs" Link="src\ScreensaverForm.cs" />
     <Compile Include="..\src\Video.cs" Link="src\Video.cs" />
-    <Compile Include="..\src\Videos.cs" Link="src\Videos.cs" />
-    <Compile Include="..\src\Catalog.cs" Link="src\Catalog.cs" />
-    <Compile Include="..\src\Captions.cs" Link="src\Captions.cs" />
+    <Compile Include="..\src\VideoController.cs" Link="src\VideoController.cs" />
+    <Compile Include="..\src\VideoCatalog.cs" Link="src\VideoCatalog.cs" />
+    <Compile Include="..\src\LocalizableStrings.cs" Link="src\LocalizableStrings.cs" />
     <Compile Include="..\src\CaptionsState.cs" Link="src\CaptionsState.cs" />
     <Compile Include="..\src\Downloader.cs" Link="src\Downloader.cs" />
-    <Compile Include="..\src\SRT.cs" Link="src\SRT.cs" />
+    <Compile Include="..\src\SrtGeneration.cs" Link="src\SrtGeneration.cs" />
     <Compile Include="..\src\VideoPlayer.cs" Link="src\VideoPlayer.cs" />
     <Compile Include="..\src\IdleExitTracker.cs" Link="src\IdleExitTracker.cs" />
     <Compile Include="..\src\VideoQueue.cs" Link="src\VideoQueue.cs" />

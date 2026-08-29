@@ -27,9 +27,9 @@ internal static class AerialApp
         VideoPlayer.Log("=== AerialApp starting ===");
 
         VideoPlayer.InitializeCore();
-        Videos.InitializeAsync().GetAwaiter().GetResult();
+        VideoController.InitializeAsync().GetAwaiter().GetResult();
         VideoPlayer.Log($"Catalog URL: {CatalogUrl}");
-        var catalog = new Catalog(CatalogUrl);
+        var catalog = new VideoCatalog(CatalogUrl);
         catalog.InitializeAsync().GetAwaiter().GetResult();
         VideoPlayer.Log($"Catalog loaded: {catalog.Videos.Count} assets");
 

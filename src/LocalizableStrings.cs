@@ -7,11 +7,11 @@ namespace Aerial;
 /// <summary>
 /// Parses the TVIdleScreenStrings plist file and provides localized string lookups.
 /// </summary>
-internal sealed class Captions
+internal sealed class LocalizableStrings
 {
     private readonly Dictionary<string, string> _localizations;
 
-    public Captions(string plistFilePath)
+    public LocalizableStrings(string plistFilePath)
     {
         _localizations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 

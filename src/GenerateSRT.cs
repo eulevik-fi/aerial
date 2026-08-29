@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Aerial;
 
-internal static class Srt
+internal static class GenerateSrt
 {
     public static string GenerateFromPointsOfInterest(IReadOnlyDictionary<int, string> pointsOfInterest)
     {

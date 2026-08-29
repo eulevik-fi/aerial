@@ -90,8 +90,8 @@ internal static class Program
         // Initialize LibVLC and load the shared URL collection.
         VideoPlayer.InitializeCore();
         // Fetch (or refresh) the video catalog before showing anything.
-        Videos.InitializeAsync().GetAwaiter().GetResult();
-        var catalog = new Catalog(CatalogUrl);
+        VideoController.InitializeAsync().GetAwaiter().GetResult();
+        var catalog = new VideoCatalog(CatalogUrl);
         catalog.InitializeAsync().GetAwaiter().GetResult();
 
         using var idleTracker = new IdleExitTracker();
@@ -113,12 +113,12 @@ internal static class Program
             return;
 
         VideoPlayer.InitializeCore();
-        Videos.InitializeAsync().GetAwaiter().GetResult();
-        var catalog = new Catalog(CatalogUrl);
+        VideoController.InitializeAsync().GetAwaiter().GetResult();
+        var catalog = new VideoCatalog(CatalogUrl);
         catalog.InitializeAsync().GetAwaiter().GetResult();
 
         var availableVideos = catalog.Videos
-            .Where(video => !Videos.IsInMru(video))
+            .Where(video => !VideoController.IsInMru(video))
             .ToArray();
         if (availableVideos.Length == 0)
             return;
@@ -138,7 +138,7 @@ internal static class Program
                 Application.ExitThread();
         };
         player.Attach(parentHwnd);
-        Videos.RecordPlayed(video);
+        VideoController.RecordPlayed(video);
         player.Play(video);
         monitor.Start();
         Application.Run();
