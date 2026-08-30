@@ -79,7 +79,12 @@ internal sealed class VideoCatalog
                     {
                         string value = property.Value.GetString() ?? string.Empty;
 
-                        if (property.Name.StartsWith("url", StringComparison.OrdinalIgnoreCase))
+                        if (property.NameEquals("url"))
+                        {
+                            urlEntries["url-1080-H264"] = value;
+                        }
+
+                        if (property.Name.StartsWith("url-", StringComparison.OrdinalIgnoreCase))
                         {
                             urlEntries[property.Name] = value;
                         }
