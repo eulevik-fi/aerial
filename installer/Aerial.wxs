@@ -31,6 +31,8 @@
       <ComponentRef Id="RegisterScreensaverShortcut" />
       <Files Include="$(var.SourceDir)\**" Directory="INSTALLFOLDER">
         <Exclude Files="$(var.SourceDir)\Setup Aerial.vbs" />
+        <Exclude Files="$(var.SourceDir)\AerialApp*" />
+        <Exclude Files="$(var.SourceDir)\**\*.pdb" />
       </Files>
     </Feature>
 

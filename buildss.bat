@@ -10,14 +10,12 @@ call "%VCVARS%"
 if errorlevel 1 exit /b 1
 
 rem --- Screensaver (Aerial.scr) ---
-dotnet publish AerialScreenSaver\AerialScreenSaver.csproj -c Release -r win-x64 --self-contained true -p:Version=%VERSION% -o out\installer-payload
+dotnet publish AerialScreenSaver\AerialScreenSaver.csproj -c Release -r win-x64 --self-contained true -p:Version=%VERSION% -o out
 if errorlevel 1 exit /b 1
 
-copy /y out\installer-payload\Aerial.exe out\installer-payload\Aerial.scr >nul
-copy /y out\installer-payload\Aerial.scr out\Aerial.scr >nul
-copy /y "installer\Setup Aerial.vbs" "out\installer-payload\Setup Aerial.vbs" >nul
-copy /y "installer\Aerial.ico" out\installer-payload\Aerial.ico >nul
-copy /y "installer\Aerial.png" out\installer-payload\Aerial.png >nul
+if exist "out\Aerial.scr" del /f /q "out\Aerial.scr" >nul
+if exist "out\Aerial.exe" ren "out\Aerial.exe" "Aerial.scr" >nul
+
 echo.
-echo Build complete: %~dp0out\installer-payload\Aerial.scr
+echo Build complete: %~dp0out\Aerial.scr
 endlocal
