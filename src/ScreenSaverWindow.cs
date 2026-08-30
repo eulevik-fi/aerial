@@ -10,7 +10,7 @@ namespace Aerial;
 /// </summary>
 internal sealed class ScreenSaverWindow : Form
 {
-    private readonly Screen _screen;
+    private readonly Monitor _monitor;
     private bool _closed;
     private bool _shiftKeyDown;
     private VideoPlayer? _videoPlayer;
@@ -22,9 +22,9 @@ internal sealed class ScreenSaverWindow : Form
         set => _videoPlayer = value;
     }
 
-    public ScreenSaverWindow(Screen screen)
+    public ScreenSaverWindow(Monitor monitor)
     {
-        _screen = screen;
+        _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
         _shiftKeyDown = false;
 
         FormBorderStyle = FormBorderStyle.None;
@@ -38,7 +38,7 @@ internal sealed class ScreenSaverWindow : Form
         // Position on the target display using its bounds. This works for
         // any DPI / zoom ratio because Screen.Bounds is already expressed in
         // the coordinate space of this process (per-monitor DPI aware).
-        Bounds = screen.Bounds;
+        Bounds = _monitor.Screen.Bounds;
 
         Cursor.Hide();
     }

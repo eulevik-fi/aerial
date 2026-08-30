@@ -28,6 +28,7 @@
     <Compile Include="..\src\Logging.cs" Link="src\Logging.cs" />
     <Compile Include="..\src\IdleExitTracker.cs" Link="src\IdleExitTracker.cs" />
     <Compile Include="..\src\VideoQueue.cs" Link="src\VideoQueue.cs" />
+    <Compile Include="..\src\Monitor.cs" Link="src\Monitor.cs" />
 
   </ItemGroup>
 

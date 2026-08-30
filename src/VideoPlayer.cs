@@ -140,16 +140,26 @@ internal sealed class VideoPlayer : IDisposable
     /// <summary>Starts streaming playback of the given video.</summary>
     public void Play(Video video)
     {
-        Play(video, showHelpCaption: false);
+        Play(video, showHelpCaption: false, monitor: null);
     }
 
     public void Play(Video video, bool showHelpCaption)
+    {
+        Play(video, showHelpCaption, monitor: null);
+    }
+
+    public void Play(Video video, Monitor? monitor)
+    {
+        Play(video, showHelpCaption: false, monitor);
+    }
+
+    public void Play(Video video, bool showHelpCaption, Monitor? monitor)
     {
         if (_shuttingDown || _disposed || video is null)
             return;
 
         _currentVideo = video;
-        var url = video.Url;
+        var url = video.GetPreferredUrlForMonitor(monitor);
         
         if (url.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {

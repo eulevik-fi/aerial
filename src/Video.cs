@@ -8,13 +8,33 @@ namespace Aerial;
 /// </summary>
 internal sealed class Video : IEquatable<Video>
 {
-    // It is required that Urls contains the "url-1080-H264" entry.
-    /// <summary>The streaming URL for the video.</summary>
+    private const string UrlHD = "url-1080-H264";
+    private const string Url4K = "url-4K-SDR";
+
+    // It is required that Urls contains the 1080p fallback entry.
+    /// <summary>The default streaming URL for the video.</summary>
     public Uri Url =>
-        Urls.TryGetValue("url-1080-H264", out string? highDefinitionUrl) &&
-        Uri.TryCreate(highDefinitionUrl, UriKind.Absolute, out Uri? resolvedHighDefinitionUrl)
-            ? resolvedHighDefinitionUrl
+        TryCreateUri(Urls.TryGetValue(UrlHD, out string? urlHd) ? urlHd : null, out Uri? resolvedHd)
+            ? resolvedHd
             : throw new InvalidOperationException("Video requires Urls to contain url-1080-H264.");
+
+    public Uri GetPreferredUrlForMonitor(Monitor? monitor)
+    {
+        if (monitor is null)
+            return Url;
+
+        if (monitor.IsLargeDisplay)
+            return TryCreateUri(Urls.TryGetValue(Url4K, out string? url4K) ? url4K : null, out Uri? resolved4K)
+                ? resolved4K
+                : Url;
+
+        return Url;
+    }
+
+    private static bool TryCreateUri(string? value, out Uri uri)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out uri!);
+    }
 
     /// <summary>All discovered URL variants, keyed by the original JSON property name.</summary>
     public IReadOnlyDictionary<string, string> Urls { get; }

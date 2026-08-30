@@ -81,6 +81,7 @@ internal sealed class VideoCatalog
 
                         if (property.NameEquals("url"))
                         {
+                            // old catalog, which is 1080 H264
                             urlEntries["url-1080-H264"] = value;
                         }
 

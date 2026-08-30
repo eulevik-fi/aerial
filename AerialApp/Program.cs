@@ -26,6 +26,8 @@ internal static class AerialApp
         Logging.PrepareLog();
         Logging.Log("=== AerialApp starting ===");
 
+        Monitor.Discover();
+
         VideoPlayer.InitializeCore();
         VideoController.InitializeAsync().GetAwaiter().GetResult();
         Logging.Log($"Catalog URL: {CatalogUrl}");

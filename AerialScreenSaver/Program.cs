@@ -87,6 +87,8 @@ internal static class Program
     /// <summary>/s - run one full-screen form per attached display.</summary>
     private static void RunFullScreen()
     {
+        Monitor.Discover();
+
         // Initialize LibVLC and load the shared URL collection.
         VideoPlayer.InitializeCore();
         // Fetch (or refresh) the video catalog before showing anything.

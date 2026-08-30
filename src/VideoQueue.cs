@@ -41,9 +41,9 @@ internal sealed class VideoQueue : IDisposable
                 (initialVideos[swapIndex], initialVideos[index]);
         }
 
-        foreach (Screen screen in Screen.AllScreens)
+        foreach (var monitor in Monitor.All)
         {
-            var form = new ScreenSaverWindow(screen);
+            var form = new ScreenSaverWindow(monitor);
             var videoView = new VideoView
             {
                 Dock = DockStyle.Fill,
@@ -51,7 +51,7 @@ internal sealed class VideoQueue : IDisposable
             };
             form.Controls.Add(videoView);
 
-            var player = new VideoPlayer(videoView, $"screen{_forms.Count}");
+            var player = new VideoPlayer(videoView, monitor.Name);
             _players.Add(player);
             form.VideoPlayer = player;  // Connect player to form for shift key handling
             bool hasShownInitialHint = false;
@@ -81,7 +81,7 @@ internal sealed class VideoQueue : IDisposable
                     return;
 
                 VideoController.RecordPlayed(nextVideo);
-                player.Play(nextVideo);
+                player.Play(nextVideo, monitor);
             }
 
             void QueueNextVideo()
@@ -118,7 +118,7 @@ internal sealed class VideoQueue : IDisposable
                 VideoController.RecordPlayed(currentVideo);
                 bool showCaptionHint = !VideoPlayer._subtitlesShown && !hasShownInitialHint;
                 hasShownInitialHint = true;
-                player.Play(currentVideo, showCaptionHint);
+                player.Play(currentVideo, showCaptionHint, monitor);
             };
             _forms.Add(form);
         }
