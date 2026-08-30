@@ -21,12 +21,6 @@ internal sealed class VideoQueue : IDisposable
         _videos = videos;
     }
 
-    /// <summary>Compatibility constructor that converts Uri list to Video list.</summary>
-    public VideoQueue(IReadOnlyList<Uri> videoUrls)
-        : this(videoUrls.Select(url => new Video(url)).ToList())
-    {
-    }
-
     public bool Start()
     {
         if (_started)

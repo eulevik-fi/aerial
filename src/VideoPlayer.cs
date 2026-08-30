@@ -187,13 +187,6 @@ internal sealed class VideoPlayer : IDisposable
         }
     }
 
-    /// <summary>Compatibility overload for Uri (converts to Video internally).</summary>
-    public void Play(Uri url)
-    {
-        if (url is null)
-            return;
-        Play(new Video(url));
-    }
 
     public void Stop()
     {
@@ -203,6 +196,9 @@ internal sealed class VideoPlayer : IDisposable
 
     public void AddSubtitle()
     {
+        if (string.Equals(_name, "preview", StringComparison.OrdinalIgnoreCase))
+            return;
+
         if (_shuttingDown || _disposed || _mediaPlayer.Media is null || _currentVideo is null)
             return;
 
@@ -215,6 +211,9 @@ internal sealed class VideoPlayer : IDisposable
 
     private void AddSubtitleFromContent(string srtContent)
     {
+        if (string.Equals(_name, "preview", StringComparison.OrdinalIgnoreCase))
+            return;
+
         if (_shuttingDown || _disposed || _mediaPlayer.Media is null)
             return;
 
@@ -225,7 +224,6 @@ internal sealed class VideoPlayer : IDisposable
                 $"video-subtitle-{Guid.NewGuid()}.srt");
 
             File.WriteAllText(subtitlePath, srtContent);
-            Logging.Log($"[{_name}] Generated SRT file: {subtitlePath} ({srtContent.Length} chars)");
 
             string fileUrl = new Uri(subtitlePath).AbsoluteUri;
             _mediaPlayer.AddSlave(MediaSlaveType.Subtitle, fileUrl, select: true);
@@ -243,6 +241,9 @@ internal sealed class VideoPlayer : IDisposable
         {
             foreach (var player in _allPlayers)
             {
+                if (string.Equals(player._name, "preview", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 player.AddSubtitle();
             }
         }
@@ -257,6 +258,9 @@ internal sealed class VideoPlayer : IDisposable
         {
             foreach (var player in _allPlayers)
             {
+                if (string.Equals(player._name, "preview", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 if (!player._shuttingDown && !player._disposed)
                 {
                     player._mediaPlayer.SetSpu(-1);

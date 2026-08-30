@@ -13,7 +13,7 @@ internal static class Logging
             if (!File.Exists(logPath))
                 return;
 
-            if (DateTime.Now - File.GetCreationTime(logPath) > TimeSpan.FromMinutes(5))
+            if (DateTime.Now - File.GetLastWriteTime(logPath) > TimeSpan.FromMinutes(5))
             {
                 File.Delete(logPath);
                 File.WriteAllText(logPath, string.Empty);

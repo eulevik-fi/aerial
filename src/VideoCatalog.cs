@@ -67,32 +67,32 @@ internal sealed class VideoCatalog
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-                string? urlValue = null;
                 string? description = null;
                 string? accessibilityLabel = null;
                 string? localizedNameKey = null;
                 var pointsOfInterest = new Dictionary<int, string>();
+                var urlEntries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (JsonProperty property in element.EnumerateObject())
                 {
-                    if (property.NameEquals("url") && property.Value.ValueKind == JsonValueKind.String)
+                    if (property.Value.ValueKind == JsonValueKind.String)
                     {
-                        urlValue = property.Value.GetString()!;
-                    }
+                        string value = property.Value.GetString() ?? string.Empty;
 
-                    if (property.NameEquals("accessibilityLabel") && property.Value.ValueKind == JsonValueKind.String)
-                    {
-                        accessibilityLabel = property.Value.GetString();
-                    }
+                        if (property.Name.StartsWith("url", StringComparison.OrdinalIgnoreCase))
+                        {
+                            urlEntries[property.Name] = value;
+                        }
 
-                    if (property.NameEquals("url-1080-H264") && property.Value.ValueKind == JsonValueKind.String)
-                    {
-                        urlValue = property.Value.GetString()?.Replace("\\", string.Empty);
-                    }
+                         if (property.NameEquals("accessibilityLabel"))
+                        {
+                            accessibilityLabel = value;
+                        }
 
-                    if (property.NameEquals("localizedNameKey") && property.Value.ValueKind == JsonValueKind.String)
-                    {
-                        localizedNameKey = property.Value.GetString();
+                        if (property.NameEquals("localizedNameKey"))
+                        {
+                            localizedNameKey = value;
+                        }
                     }
 
                     if (property.NameEquals("pointsOfInterest") && property.Value.ValueKind == JsonValueKind.Object)
@@ -123,11 +123,13 @@ internal sealed class VideoCatalog
                     description = accessibilityLabel;
                 }
 
-                // If we found URL, create a Video
-                if (!string.IsNullOrWhiteSpace(urlValue) && Uri.TryCreate(urlValue, UriKind.Absolute, out Uri? uri))
+                // Only create a Video when the canonical 1080p H.264 URL is present.
+                if (urlEntries.TryGetValue("url-1080-H264", out string? hdUrl) &&
+                    !string.IsNullOrWhiteSpace(hdUrl) &&
+                    Uri.TryCreate(hdUrl, UriKind.Absolute, out _))
                 {
                     string desc = description ?? "";
-                    videos.Add(new Video(uri, desc, pointsOfInterest));
+                    videos.Add(new Video(desc, pointsOfInterest, urlEntries));
                 }
 
                 // Continue traversing for nested objects/arrays
