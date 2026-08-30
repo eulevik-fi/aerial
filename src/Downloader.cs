@@ -12,9 +12,6 @@ internal sealed class Downloader
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Aerial");
 
-    private const string EntriesJsonFile = "entries.json";
-    private const string LocalizableStringsFile = "Localizable.nocache.strings";
-
     public static async Task<string?> DownloadAsync(string url, string cacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);

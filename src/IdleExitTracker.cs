@@ -12,20 +12,36 @@ internal sealed class IdleExitTracker : IDisposable
 {
     private Point _lastMousePos;
     private System.Windows.Forms.Timer? _timer;
+    private DateTime _startTime;
 
     public void Start()
     {
+        _startTime = DateTime.Now;
         _lastMousePos = Cursor.Position;
         _timer = new System.Windows.Forms.Timer { Interval = 100 };
         _timer.Tick += (_, _) =>
         {
-            var pos = Cursor.Position;
-            if (pos != _lastMousePos)
+            try
             {
-                Exit();
-                return;
+                // Ignore mouse movement for the first second to prevent accidental exit
+                if ((DateTime.Now - _startTime).TotalSeconds < 1)
+                {
+                    _lastMousePos = Cursor.Position;
+                    return;
+                }
+
+                var pos = Cursor.Position;
+                if (pos != _lastMousePos)
+                {
+                    Exit();
+                    return;
+                }
+                _lastMousePos = pos;
             }
-            _lastMousePos = pos;
+            catch (Exception ex)
+            {
+                Logging.Log($"[IdleExitTracker.Tick Error] {ex.GetType().Name}: {ex.Message}");
+            }
         };
         _timer.Start();
     }

@@ -70,6 +70,7 @@ internal sealed class VideoCatalog
                 string? description = null;
                 string? accessibilityLabel = null;
                 string? localizedNameKey = null;
+                string? previewImage = null;
                 var pointsOfInterest = new Dictionary<int, string>();
                 var urlEntries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -98,6 +99,11 @@ internal sealed class VideoCatalog
                         if (property.NameEquals("localizedNameKey"))
                         {
                             localizedNameKey = value;
+                        }
+
+                        if (property.NameEquals("previewImage"))
+                        {
+                            previewImage = value;
                         }
                     }
 
@@ -135,7 +141,7 @@ internal sealed class VideoCatalog
                     Uri.TryCreate(hdUrl, UriKind.Absolute, out _))
                 {
                     string desc = description ?? "";
-                    videos.Add(new Video(desc, pointsOfInterest, urlEntries));
+                    videos.Add(new Video(desc, pointsOfInterest, urlEntries, previewImage));
                 }
 
                 // Continue traversing for nested objects/arrays

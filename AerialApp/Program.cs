@@ -21,29 +21,56 @@ internal static class AerialApp
     [STAThread]
     private static int Main()
     {
-        ApplicationConfiguration.Initialize();
+        try
+        {
+            ApplicationConfiguration.Initialize();
+            Application.ThreadException += (sender, e) =>
+            {
+                Logging.Log($"[ThreadException] {e.Exception?.GetType().Name}: {e.Exception?.Message}");
+                Logging.Log($"StackTrace: {e.Exception?.StackTrace}");
+            };
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+            {
+                var ex = e.ExceptionObject as Exception;
+                Logging.Log($"[UnhandledException] {ex?.GetType().Name}: {ex?.Message}");
+                Logging.Log($"StackTrace: {ex?.StackTrace}");
+            };
 
-        Logging.PrepareLog();
-        Logging.Log("=== AerialApp starting ===");
+            Logging.PrepareLog();
+            Logging.Log("=== AerialApp starting ===");
 
-        Monitor.Discover();
+            MonitorInfo.Discover();
 
-        VideoPlayer.InitializeCore();
-        VideoController.InitializeAsync().GetAwaiter().GetResult();
-        Logging.Log($"Catalog URL: {CatalogUrl}");
-        var catalog = new VideoCatalog(CatalogUrl);
-        catalog.InitializeAsync().GetAwaiter().GetResult();
-        Logging.Log($"Catalog loaded: {catalog.Videos.Count} assets");
+            VideoPlayer.InitializeCore();
+            VideoController.InitializeAsync().GetAwaiter().GetResult();
+            Logging.Log($"Catalog URL: {CatalogUrl}");
+            var catalog = new VideoCatalog(CatalogUrl);
+            catalog.InitializeAsync().GetAwaiter().GetResult();
+            Logging.Log($"Catalog loaded: {catalog.Videos.Count} assets");
 
-        using var idleTracker = new IdleExitTracker();
-        var queue = new VideoQueue(catalog.Videos);
-        if (!queue.Start())
+            using var idleTracker = new IdleExitTracker();
+            var queue = new VideoQueue(catalog.Videos);
+            if (!queue.Start())
+                return 0;
+
+            idleTracker.Start();
+            Application.Run();
+            queue.Dispose();
+
             return 0;
-
-        idleTracker.Start();
-        Application.Run();
-        queue.Dispose();
-
-        return 0;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                Logging.Log($"[FATAL] {ex.GetType().Name}: {ex.Message}");
+                Logging.Log($"StackTrace: {ex.StackTrace}");
+            }
+            catch
+            {
+                // If logging fails, silently continue
+            }
+            return 1;
+        }
     }
 }

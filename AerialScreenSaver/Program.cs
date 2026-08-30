@@ -19,47 +19,84 @@ internal static class Program
     [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr hWnd);
 
+    [DllImport("kernel32.dll")]
+    private static extern uint SetErrorMode(uint uMode);
+    
+    private const uint SEM_FAILCRITICALERRORS = 0x0001;
+    private const uint SEM_NOGPFAULTERRORBOX = 0x0002;
+
     [STAThread]
     private static int Main(string[] args)
     {
-        Logging.PrepareLog();
-        Logging.Log($"AerialScreenSaver starting. Args: [{string.Join(", ", args.Select(arg => $"\"{arg}\""))}]");
-
-        ApplicationConfiguration.Initialize();
-
-        string arg = args.Length > 0 ? args[0].ToLowerInvariant() : string.Empty;
-
-        switch (arg)
+        try
         {
-            case "/s":
-            case "-s":
-                RunFullScreen();
-                return 0;
+            // Suppress Windows error reporting
+            SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 
-            case "/c":
-            case "-c":
-                SignalPreviewExit();
-                ShowOptionsMessage();
-                return 0;
+            Logging.PrepareLog();
+            Logging.Log($"=== AerialScreenSaver starting. Args: [{string.Join(", ", args.Select(arg => $"\"{arg}\""))}] ===");
 
-            case "/p":
-            case "-p":
-                if (args.Length >= 2 && long.TryParse(args[1], out long hwndValue))
-                {
-                    ShowPreview(new IntPtr(hwndValue));
-                }
-                return 0;
+            Application.ThreadException += (sender, e) =>
+            {
+                Logging.Log($"[ThreadException] {e.Exception?.GetType().Name}: {e.Exception?.Message}");
+                Logging.Log($"StackTrace: {e.Exception?.StackTrace}");
+            };
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+            {
+                var ex = e.ExceptionObject as Exception;
+                Logging.Log($"[UnhandledException] {ex?.GetType().Name}: {ex?.Message}");
+                Logging.Log($"StackTrace: {ex?.StackTrace}");
+            };
 
-            default:
-                if (arg.StartsWith("/c:", StringComparison.OrdinalIgnoreCase) ||
-                    arg.StartsWith("-c:", StringComparison.OrdinalIgnoreCase))
-                {
+            ApplicationConfiguration.Initialize();
+
+            string arg = args.Length > 0 ? args[0].ToLowerInvariant() : string.Empty;
+
+            switch (arg)
+            {
+                case "/s":
+                case "-s":
+                    RunFullScreen();
+                    return 0;
+
+                case "/c":
+                case "-c":
                     SignalPreviewExit();
                     ShowOptionsMessage();
                     return 0;
+
+                case "/p":
+                case "-p":
+                    if (args.Length >= 2 && long.TryParse(args[1], out long hwndValue))
+                    {
+                        ShowPreview(new IntPtr(hwndValue));
+                    }
+                    return 0;
+
+                default:
+                    if (arg.StartsWith("/c:", StringComparison.OrdinalIgnoreCase) ||
+                        arg.StartsWith("-c:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        SignalPreviewExit();
+                        ShowOptionsMessage();
+                        return 0;
+                    }
+                    return 0;
                 }
-                return 0;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                Logging.Log($"[FATAL] {ex.GetType().Name}: {ex.Message}");
+                Logging.Log($"StackTrace: {ex.StackTrace}");
             }
+            catch
+            {
+                // If logging fails, silently continue
+            }
+            return 1;
+        }
     }
 
     private static void SignalPreviewExit()
@@ -87,63 +124,86 @@ internal static class Program
     /// <summary>/s - run one full-screen form per attached display.</summary>
     private static void RunFullScreen()
     {
-        Monitor.Discover();
+        try
+        {
+            MonitorInfo.Discover();
 
-        // Initialize LibVLC and load the shared URL collection.
-        VideoPlayer.InitializeCore();
-        // Fetch (or refresh) the video catalog before showing anything.
-        VideoController.InitializeAsync().GetAwaiter().GetResult();
-        var catalog = new VideoCatalog(CatalogUrl);
-        catalog.InitializeAsync().GetAwaiter().GetResult();
+            // Initialize LibVLC and load the shared URL collection.
+            VideoPlayer.InitializeCore();
+            // Fetch (or refresh) the video catalog before showing anything.
+            VideoController.InitializeAsync().GetAwaiter().GetResult();
+            var catalog = new VideoCatalog(CatalogUrl);
+            catalog.InitializeAsync().GetAwaiter().GetResult();
 
-        using var idleTracker = new IdleExitTracker();
-        var queue = new VideoQueue(catalog.Videos);
-        if (!queue.Start())
-            return;
+            using var idleTracker = new IdleExitTracker();
+            var queue = new VideoQueue(catalog.Videos);
+            if (!queue.Start())
+                return;
 
-        idleTracker.Start();
+            idleTracker.Start();
 
-        Application.Run();
-        queue.Dispose();
+            Application.Run();
+            queue.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"[RunFullScreen Error] {ex.GetType().Name}: {ex.Message}");
+            Logging.Log($"StackTrace: {ex.StackTrace}");
+        }
     }
 
-    /// <summary>/p &lt;hwnd&gt; - render inside the little preview window of the
+    /// <summary>/p <hwnd> - render inside the little preview window of the
     /// Windows screensaver settings dialog.</summary>
     private static void ShowPreview(IntPtr parentHwnd)
     {
-        if (parentHwnd == IntPtr.Zero)
-            return;
-
-        VideoPlayer.InitializeCore();
-        VideoController.InitializeAsync().GetAwaiter().GetResult();
-        var catalog = new VideoCatalog(CatalogUrl);
-        catalog.InitializeAsync().GetAwaiter().GetResult();
-
-        var availableVideos = catalog.Videos
-            .Where(video => !VideoController.IsInMru(video))
-            .ToArray();
-        if (availableVideos.Length == 0)
-            return;
-
-        using var exitSignal = new EventWaitHandle(
-            false,
-            EventResetMode.ManualReset,
-            PreviewExitEventName);
-        using var monitor = new System.Windows.Forms.Timer { Interval = 500 };
-        using var previewHost = new System.Windows.Forms.Control();
-        using var player = new VideoPlayer(previewHost, "preview");
-        Video video = availableVideos[Random.Shared.Next(availableVideos.Length)];
-        monitor.Tick += (_, _) =>
+        try
         {
-            if (exitSignal.WaitOne(0) ||
-                !IsWindow(parentHwnd) ||
-                !IsWindowVisible(parentHwnd))
-                Application.ExitThread();
-        };
-        player.Attach(parentHwnd);
-        VideoController.RecordPlayed(video);
-        player.Play(video);
-        monitor.Start();
-        Application.Run();
+            if (parentHwnd == IntPtr.Zero)
+                return;
+
+            VideoPlayer.InitializeCore();
+            VideoController.InitializeAsync().GetAwaiter().GetResult();
+            var catalog = new VideoCatalog(CatalogUrl);
+            catalog.InitializeAsync().GetAwaiter().GetResult();
+
+            var availableVideos = catalog.Videos
+                .Where(video => !VideoController.IsInMru(video))
+                .ToArray();
+            if (availableVideos.Length == 0)
+                return;
+
+            using var exitSignal = new EventWaitHandle(
+                false,
+                EventResetMode.ManualReset,
+                PreviewExitEventName);
+            using var monitor = new System.Windows.Forms.Timer { Interval = 500 };
+            using var previewHost = new System.Windows.Forms.Control();
+            using var player = new VideoPlayer(previewHost, "preview");
+            Video video = availableVideos[Random.Shared.Next(availableVideos.Length)];
+            monitor.Tick += (_, _) =>
+            {
+                try
+                {
+                    if (exitSignal.WaitOne(0) ||
+                        !IsWindow(parentHwnd) ||
+                        !IsWindowVisible(parentHwnd))
+                        Application.ExitThread();
+                }
+                catch (Exception ex)
+                {
+                    Logging.Log($"[Preview monitor tick error] {ex.Message}");
+                }
+            };
+            player.Attach(parentHwnd);
+            VideoController.RecordPlayed(video);
+            player.Play(video);
+            monitor.Start();
+            Application.Run();
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"[ShowPreview Error] {ex.GetType().Name}: {ex.Message}");
+            Logging.Log($"StackTrace: {ex.StackTrace}");
+        }
     }
 }

@@ -33,15 +33,6 @@ internal static class VideoController
         }
     }
 
-    /// <summary>Compatibility overload for Uri.</summary>
-    public static bool IsInMru(Uri url)
-    {
-        lock (MruGate)
-        {
-            return RecentVideos.Contains(url.AbsoluteUri, StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
     public static Video? SelectNextVideo(
         IReadOnlyList<Video> videos,
         Video current,

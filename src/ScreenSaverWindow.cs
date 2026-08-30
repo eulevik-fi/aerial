@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace Aerial;
@@ -10,10 +9,11 @@ namespace Aerial;
 /// </summary>
 internal sealed class ScreenSaverWindow : Form
 {
-    private readonly Monitor _monitor;
+    private readonly MonitorInfo _monitorInfo;
     private bool _closed;
-    private bool _shiftKeyDown;
     private VideoPlayer? _videoPlayer;
+    private DateTime _showTime;
+    private KeyHandler? _keyHandler;
 
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public VideoPlayer? VideoPlayer
@@ -22,10 +22,9 @@ internal sealed class ScreenSaverWindow : Form
         set => _videoPlayer = value;
     }
 
-    public ScreenSaverWindow(Monitor monitor)
+    public ScreenSaverWindow(MonitorInfo monitorInfo)
     {
-        _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
-        _shiftKeyDown = false;
+        _monitorInfo = monitorInfo ?? throw new ArgumentNullException(nameof(monitorInfo));
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
@@ -38,7 +37,7 @@ internal sealed class ScreenSaverWindow : Form
         // Position on the target display using its bounds. This works for
         // any DPI / zoom ratio because Screen.Bounds is already expressed in
         // the coordinate space of this process (per-monitor DPI aware).
-        Bounds = _monitor.Screen.Bounds;
+        Bounds = _monitorInfo.Screen.Bounds;
 
         Cursor.Hide();
     }
@@ -46,6 +45,8 @@ internal sealed class ScreenSaverWindow : Form
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
+        _showTime = DateTime.Now;
+        _keyHandler = new KeyHandler(() => VideoPlayer.ToggleSubtitles());
         Capture = true;
     }
 
@@ -64,6 +65,7 @@ internal sealed class ScreenSaverWindow : Form
         const int WM_SYSCOMMAND = 0x0112;
         const int SC_MOVE = 0xF010;
         const int SC_MONITORPOWER = 0xF170;
+        const int WM_DISPLAYCHANGE = 0x007E;
 
         switch (m.Msg)
         {
@@ -72,50 +74,98 @@ internal sealed class ScreenSaverWindow : Form
                 if (cmd == SC_MOVE || cmd == SC_MONITORPOWER)
                     return; // swallow so the user can't drag or blank us
                 break;
+
+            case WM_DISPLAYCHANGE:
+                // Display configuration has changed; reinitialize the window
+                ReinitializeForDisplayChange();
+                break;
         }
 
         base.WndProc(ref m);
     }
 
+    private void ReinitializeForDisplayChange()
+    {
+        try
+        {
+            // Rediscover monitors to get updated bounds
+            MonitorInfo.Discover();
+
+            // Update this window's bounds to the current monitor's bounds
+            if (_monitorInfo.Screen is not null)
+            {
+                Bounds = _monitorInfo.Screen.Bounds;
+            }
+
+            // Reset the grace period timer so inputs are ignored for 1 second after display change
+            _showTime = DateTime.Now;
+
+            // Reattach video player to the new window handle in case DPI or rendering context changed
+            if (_videoPlayer is not null)
+            {
+                _videoPlayer.Attach();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log but don't crash on display change errors
+            Logging.Log($"Error reinitializing after display change: {ex.Message}");
+        }
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (IsShiftKey(e))
+        try
         {
-            if (!_shiftKeyDown)
-            {
-                _shiftKeyDown = true;
-                VideoPlayer.ToggleSubtitles();
-            }
-            return;
-        }
+            // Let KeyHandler process shift and control keys
+            _keyHandler?.HandleKeyDown(e);
+            if (e.Handled)
+                return;
 
-        CloseAll();
-        base.OnKeyDown(e);
+            // Ignore keyboard input for the first second to prevent accidental exit
+            if ((DateTime.Now - _showTime).TotalSeconds < 1)
+                return;
+
+            CloseAll();
+            base.OnKeyDown(e);
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"[OnKeyDown Error] {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     protected override void OnKeyUp(KeyEventArgs e)
     {
-        if (IsShiftKey(e))
+        try
         {
-            if (_shiftKeyDown)
-            {
-                _shiftKeyDown = false;
-            }
-            return;
+            _keyHandler?.HandleKeyUp(e);
+            if (e.Handled)
+                return;
+
+            base.OnKeyUp(e);
         }
-
-        base.OnKeyUp(e);
-    }
-
-    private static bool IsShiftKey(KeyEventArgs e)
-    {
-        return e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.LShiftKey || e.KeyCode == Keys.RShiftKey;
+        catch (Exception ex)
+        {
+            Logging.Log($"[OnKeyUp Error] {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
-        CloseAll();
-        base.OnMouseDown(e);
+        try
+        {
+            // Ignore mouse input for the first second to prevent accidental exit
+            if ((DateTime.Now - _showTime).TotalSeconds < 1)
+                return;
+
+            CloseAll();
+            base.OnMouseDown(e);
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"[OnMouseDown Error] {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -141,95 +191,5 @@ internal sealed class ScreenSaverWindow : Form
     {
         Cursor.Show();
         base.OnFormClosed(e);
-    }
-}
-
-/// <summary>
-/// Renders inside the small preview rectangle of the Windows screensaver
-/// settings dialog (/p &lt;hwnd&gt;). The parent window handle is supplied by
-/// Windows itself.
-/// </summary>
-internal sealed class PreviewForm : Form
-{
-    [DllImport("user32.dll")]
-    private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
-
-    [DllImport("user32.dll")]
-    private static extern bool IsWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool IsWindowVisible(IntPtr hWnd);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT { public int Left, Top, Right, Bottom; }
-
-    private readonly IntPtr _parentHwnd;
-    private readonly EventWaitHandle _exitSignal;
-    private readonly System.Windows.Forms.Timer _parentMonitor;
-
-    public PreviewForm(IntPtr parentHwnd)
-    {
-        _parentHwnd = parentHwnd;
-
-        FormBorderStyle = FormBorderStyle.None;
-        ShowInTaskbar = false;
-        BackColor = Color.Black;
-        StartPosition = FormStartPosition.Manual;
-
-        _exitSignal = new EventWaitHandle(
-            false,
-            EventResetMode.ManualReset,
-            Program.PreviewExitEventName);
-
-        _parentMonitor = new System.Windows.Forms.Timer { Interval = 500 };
-        _parentMonitor.Tick += (_, _) =>
-        {
-            if (_exitSignal.WaitOne(0) ||
-                !IsWindow(_parentHwnd) ||
-                !IsWindowVisible(_parentHwnd))
-                Close();
-        };
-        _parentMonitor.Start();
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _parentMonitor.Dispose();
-            _exitSignal.Dispose();
-        }
-        base.Dispose(disposing);
-    }
-
-    protected override CreateParams CreateParams
-    {
-        get
-        {
-            var cp = base.CreateParams;
-            cp.Style = (cp.Style & ~0x00C00000) | 0x40000000; // WS_CHILD
-            cp.Parent = _parentHwnd;
-            cp.ExStyle &= ~0x00040000; // WS_EX_APPWINDOW
-            return cp;
-        }
-    }
-
-    protected override void OnHandleCreated(EventArgs e)
-    {
-        base.OnHandleCreated(e);
-
-        if (GetClientRect(_parentHwnd, out RECT rc))
-        {
-            // Child-window coordinates start at the parent's client origin.
-            Location = new Point(0, 0);
-            Size = new Size(rc.Right - rc.Left, rc.Bottom - rc.Top);
-        }
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        base.OnPaint(e);
-        using var brush = new SolidBrush(Color.Black);
-        e.Graphics.FillRectangle(brush, ClientRectangle);
     }
 }

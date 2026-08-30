@@ -140,26 +140,21 @@ internal sealed class VideoPlayer : IDisposable
     /// <summary>Starts streaming playback of the given video.</summary>
     public void Play(Video video)
     {
-        Play(video, showHelpCaption: false, monitor: null);
+        Play(video, showHelpCaption: false, monitorInfo: null);
     }
 
-    public void Play(Video video, bool showHelpCaption)
+    public void Play(Video video, MonitorInfo? monitorInfo)
     {
-        Play(video, showHelpCaption, monitor: null);
+        Play(video, showHelpCaption: false, monitorInfo);
     }
 
-    public void Play(Video video, Monitor? monitor)
-    {
-        Play(video, showHelpCaption: false, monitor);
-    }
-
-    public void Play(Video video, bool showHelpCaption, Monitor? monitor)
+    public void Play(Video video, bool showHelpCaption, MonitorInfo? monitorInfo)
     {
         if (_shuttingDown || _disposed || video is null)
             return;
 
         _currentVideo = video;
-        var url = video.GetPreferredUrlForMonitor(monitor);
+        var url = video.GetPreferredUrlForMonitor(monitorInfo);
         
         if (url.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
@@ -180,14 +175,15 @@ internal sealed class VideoPlayer : IDisposable
         media.AddOption(":no-gnutls-system-trust");
         media.AddOption(":http-reconnect");
 
-        var started = _mediaPlayer.Play(media);
+        _mediaPlayer.Play(media);
         if (showHelpCaption)
         {
             AddSubtitleFromContent(SrtGeneration.GenerateHelp());
             return;
         }
 
-        if (_subtitlesShown && !string.Equals(_name, "preview", StringComparison.OrdinalIgnoreCase))
+        bool shouldRetry = _subtitlesShown && !IsPreviewPlayer(_name);
+        if (shouldRetry)
         {
             var retry = new System.Windows.Forms.Timer
             {
@@ -199,7 +195,7 @@ internal sealed class VideoPlayer : IDisposable
                 {
                     retry.Stop();
                     retry.Dispose();
-                    if (_subtitlesShown && !string.Equals(_name, "preview", StringComparison.OrdinalIgnoreCase))
+                    if (shouldRetry)
                         AddSubtitle();
                 }
                 catch (Exception ex)
@@ -218,12 +214,23 @@ internal sealed class VideoPlayer : IDisposable
         _mediaPlayer.Stop();
     }
 
+    private static bool IsPreviewPlayer(string name)
+    {
+        return string.Equals(name, "preview", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool CanAddSubtitle()
+    {
+        return !IsPreviewPlayer(_name) &&
+               !_shuttingDown &&
+               !_disposed &&
+               _mediaPlayer.Media is not null &&
+               _currentVideo is not null;
+    }
+
     public void AddSubtitle()
     {
-        if (string.Equals(_name, "preview", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        if (_shuttingDown || _disposed || _mediaPlayer.Media is null || _currentVideo is null)
+        if (!CanAddSubtitle() || _currentVideo is null)
             return;
 
         string srtContent = _currentVideo.PointsOfInterest.Count > 0
@@ -235,10 +242,7 @@ internal sealed class VideoPlayer : IDisposable
 
     private void AddSubtitleFromContent(string srtContent)
     {
-        if (string.Equals(_name, "preview", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        if (_shuttingDown || _disposed || _mediaPlayer.Media is null)
+        if (!CanAddSubtitle())
             return;
 
         try
@@ -265,7 +269,7 @@ internal sealed class VideoPlayer : IDisposable
         {
             foreach (var player in _allPlayers)
             {
-                if (string.Equals(player._name, "preview", StringComparison.OrdinalIgnoreCase))
+                if (IsPreviewPlayer(player._name))
                     continue;
 
                 player.AddSubtitle();
@@ -282,7 +286,7 @@ internal sealed class VideoPlayer : IDisposable
         {
             foreach (var player in _allPlayers)
             {
-                if (string.Equals(player._name, "preview", StringComparison.OrdinalIgnoreCase))
+                if (IsPreviewPlayer(player._name))
                     continue;
 
                 if (!player._shuttingDown && !player._disposed)

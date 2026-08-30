@@ -18,15 +18,13 @@ internal sealed class Video : IEquatable<Video>
             ? resolvedHd
             : throw new InvalidOperationException("Video requires Urls to contain url-1080-H264.");
 
-    public Uri GetPreferredUrlForMonitor(Monitor? monitor)
+    public Uri GetPreferredUrlForMonitor(MonitorInfo? monitorInfo)
     {
-        if (monitor is null)
-            return Url;
-
-        if (monitor.IsLargeDisplay)
-            return TryCreateUri(Urls.TryGetValue(Url4K, out string? url4K) ? url4K : null, out Uri? resolved4K)
-                ? resolved4K
-                : Url;
+        if (monitorInfo is not null && monitorInfo.IsLargeDisplay &&
+            TryCreateUri(Urls.TryGetValue(Url4K, out string? url4K) ? url4K : null, out Uri? resolved4K))
+        {
+            return resolved4K;
+        }
 
         return Url;
     }
@@ -45,23 +43,18 @@ internal sealed class Video : IEquatable<Video>
     /// <summary>Descriptions keyed by point-in-time in seconds.</summary>
     public IReadOnlyDictionary<int, string> PointsOfInterest { get; }
 
-    public Video(string description)
-        : this(description, new Dictionary<int, string>(), new Dictionary<string, string>())
-    {
-    }
-
-    public Video(string description, IReadOnlyDictionary<int, string>? pointsOfInterest)
-        : this(description, pointsOfInterest, new Dictionary<string, string>())
-    {
-    }
+    /// <summary>Preview image URL for the video.</summary>
+    public string? PreviewImage { get; }
 
     public Video(
         string description,
         IReadOnlyDictionary<int, string>? pointsOfInterest,
-        IReadOnlyDictionary<string, string>? urls)
+        IReadOnlyDictionary<string, string>? urls,
+        string? previewImage = null)
     {
         Description = description ?? throw new ArgumentNullException(nameof(description));
         PointsOfInterest = pointsOfInterest ?? new Dictionary<int, string>();
+        PreviewImage = previewImage;
 
         Dictionary<string, string> urlMap = urls is null ? new Dictionary<string, string>() : new Dictionary<string, string>(urls);
         Urls = urlMap;

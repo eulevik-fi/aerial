@@ -41,9 +41,9 @@ internal sealed class VideoQueue : IDisposable
                 (initialVideos[swapIndex], initialVideos[index]);
         }
 
-        foreach (var monitor in Monitor.All)
+        foreach (var monitorInfo in MonitorInfo.All)
         {
-            var form = new ScreenSaverWindow(monitor);
+            var form = new ScreenSaverWindow(monitorInfo);
             var videoView = new VideoView
             {
                 Dock = DockStyle.Fill,
@@ -51,7 +51,7 @@ internal sealed class VideoQueue : IDisposable
             };
             form.Controls.Add(videoView);
 
-            var player = new VideoPlayer(videoView, monitor.Name);
+            var player = new VideoPlayer(videoView, monitorInfo.Name);
             _players.Add(player);
             form.VideoPlayer = player;  // Connect player to form for shift key handling
             bool hasShownInitialHint = false;
@@ -65,23 +65,30 @@ internal sealed class VideoQueue : IDisposable
 
             void PlayNextVideo()
             {
-                Video? nextVideo;
-                lock (_videoGate)
+                try
                 {
-                    _activeVideos.Remove(currentVideo);
-                    nextVideo = VideoController.SelectNextVideo(_videos, currentVideo, _activeVideos);
-                    if (nextVideo is not null)
+                    Video? nextVideo;
+                    lock (_videoGate)
                     {
-                        currentVideo = nextVideo;
-                        _activeVideos.Add(currentVideo);
+                        _activeVideos.Remove(currentVideo);
+                        nextVideo = VideoController.SelectNextVideo(_videos, currentVideo, _activeVideos);
+                        if (nextVideo is not null)
+                        {
+                            currentVideo = nextVideo;
+                            _activeVideos.Add(currentVideo);
+                        }
                     }
+
+                    if (nextVideo is null || _disposed)
+                        return;
+
+                    VideoController.RecordPlayed(nextVideo);
+                    player.Play(nextVideo, monitorInfo);
                 }
-
-                if (nextVideo is null || _disposed)
-                    return;
-
-                VideoController.RecordPlayed(nextVideo);
-                player.Play(nextVideo, monitor);
+                catch (Exception ex)
+                {
+                    Logging.Log($"[PlayNextVideo Error] {ex.GetType().Name}: {ex.Message}");
+                }
             }
 
             void QueueNextVideo()
@@ -111,14 +118,21 @@ internal sealed class VideoQueue : IDisposable
 
             form.Shown += (_, _) =>
             {
-                if (_disposed)
-                    return;
+                try
+                {
+                    if (_disposed)
+                        return;
 
-                player.Attach();
-                VideoController.RecordPlayed(currentVideo);
-                bool showCaptionHint = !VideoPlayer._subtitlesShown && !hasShownInitialHint;
-                hasShownInitialHint = true;
-                player.Play(currentVideo, showCaptionHint, monitor);
+                    player.Attach();
+                    VideoController.RecordPlayed(currentVideo);
+                    bool showCaptionHint = !VideoPlayer._subtitlesShown && !hasShownInitialHint;
+                    hasShownInitialHint = true;
+                    player.Play(currentVideo, showCaptionHint, monitorInfo);
+                }
+                catch (Exception ex)
+                {
+                    Logging.Log($"[Form.Shown Error] {ex.GetType().Name}: {ex.Message}");
+                }
             };
             _forms.Add(form);
         }

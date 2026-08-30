@@ -7,16 +7,16 @@ namespace Aerial;
 /// <summary>
 /// Describes a monitor discovered at startup with its generated name and pixel resolution.
 /// </summary>
-internal sealed class Monitor
+internal sealed class MonitorInfo
 {
-    private static readonly List<Monitor> _all = DiscoverMonitors();
+    private static readonly List<MonitorInfo> _all = DiscoverMonitors();
 
     public string Name { get; }
     public int Width { get; }
     public int Height { get; }
     public Screen Screen { get; }
 
-    public Monitor(string name, Screen screen)
+    public MonitorInfo(string name, Screen screen)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Monitor name cannot be null or empty.", nameof(name));
@@ -35,11 +35,11 @@ internal sealed class Monitor
         Screen = screen;
     }
 
-    public static IReadOnlyList<Monitor> All => _all;
+    public static IReadOnlyList<MonitorInfo> All => _all;
 
     public bool IsLargeDisplay => Width > 1920 || Height > 1080;
 
-    public static IReadOnlyList<Monitor> Discover()
+    public static IReadOnlyList<MonitorInfo> Discover()
     {
         var discovered = DiscoverMonitors();
         _all.Clear();
@@ -47,13 +47,13 @@ internal sealed class Monitor
         return _all;
     }
 
-    private static List<Monitor> DiscoverMonitors()
+    private static List<MonitorInfo> DiscoverMonitors()
     {
-        List<Monitor> discovered = [];
+        List<MonitorInfo> discovered = [];
         for (int index = 0; index < Screen.AllScreens.Length; index++)
         {
             Screen screen = Screen.AllScreens[index];
-            discovered.Add(new Monitor($"screen{index}", screen));
+            discovered.Add(new MonitorInfo($"screen{index}", screen));
         }
 
         return discovered;
