@@ -126,6 +126,11 @@ internal sealed class VideoPlayer : IDisposable
     /// <summary>Starts streaming playback of the given video.</summary>
     public void Play(Video video)
     {
+        Play(video, showHelpCaption: false);
+    }
+
+    public void Play(Video video, bool showHelpCaption)
+    {
         if (_shuttingDown || _disposed || video is null)
             return;
 
@@ -152,7 +157,13 @@ internal sealed class VideoPlayer : IDisposable
         media.AddOption(":http-reconnect");
 
         var started = _mediaPlayer.Play(media);
-        if (_subtitlesShown)
+        if (showHelpCaption)
+        {
+            AddSubtitleFromContent(SrtGeneration.GenerateHelp());
+            return;
+        }
+
+        if (_subtitlesShown && !string.Equals(_name, "preview", StringComparison.OrdinalIgnoreCase))
         {
             var retry = new System.Windows.Forms.Timer
             {
@@ -164,7 +175,7 @@ internal sealed class VideoPlayer : IDisposable
                 {
                     retry.Stop();
                     retry.Dispose();
-                    if (_subtitlesShown)
+                    if (_subtitlesShown && !string.Equals(_name, "preview", StringComparison.OrdinalIgnoreCase))
                         AddSubtitle();
                 }
                 catch (Exception ex)
@@ -195,24 +206,28 @@ internal sealed class VideoPlayer : IDisposable
         if (_shuttingDown || _disposed || _mediaPlayer.Media is null || _currentVideo is null)
             return;
 
+        string srtContent = _currentVideo.PointsOfInterest.Count > 0
+            ? SrtGeneration.GenerateFromPointsOfInterest(_currentVideo.PointsOfInterest)
+            : SrtGeneration.GenerateFromDescription(_currentVideo.Description);
+
+        AddSubtitleFromContent(srtContent);
+    }
+
+    private void AddSubtitleFromContent(string srtContent)
+    {
+        if (_shuttingDown || _disposed || _mediaPlayer.Media is null)
+            return;
+
         try
         {
-            // Create temporary SRT file with video description or point-of-interest captions.
             string subtitlePath = Path.Combine(
                 Path.GetTempPath(),
                 $"video-subtitle-{Guid.NewGuid()}.srt");
 
-            string srtContent = _currentVideo.PointsOfInterest.Count > 0
-                ? SrtGeneration.GenerateFromPointsOfInterest(_currentVideo.PointsOfInterest)
-                : SrtGeneration.GenerateFromDescription(_currentVideo.Description);
-
             File.WriteAllText(subtitlePath, srtContent);
             Logging.Log($"[{_name}] Generated SRT file: {subtitlePath} ({srtContent.Length} chars)");
 
-            // Convert to file:// URL
             string fileUrl = new Uri(subtitlePath).AbsoluteUri;
-
-            // AddSlave with select=true
             _mediaPlayer.AddSlave(MediaSlaveType.Subtitle, fileUrl, select: true);
         }
         catch (Exception ex)

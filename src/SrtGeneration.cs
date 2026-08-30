@@ -47,4 +47,11 @@ internal static class SrtGeneration
 00:00:00,000 --> 10:00:00,000
 {description}";
     }
+
+    public static string GenerateHelp()
+    {
+        return @"1
+00:00:00,000 --> 00:00:03,000
+Tap Shift for captions...";
+    }
 }

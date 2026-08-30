@@ -60,6 +60,7 @@ internal sealed class VideoQueue : IDisposable
             var player = new VideoPlayer(videoView, $"screen{_forms.Count}");
             _players.Add(player);
             form.VideoPlayer = player;  // Connect player to form for shift key handling
+            bool hasShownInitialHint = false;
             int nextVideoQueued = 0;
             Video currentVideo;
             lock (_videoGate)
@@ -121,7 +122,9 @@ internal sealed class VideoQueue : IDisposable
 
                 player.Attach();
                 VideoController.RecordPlayed(currentVideo);
-                player.Play(currentVideo);
+                bool showCaptionHint = !VideoPlayer._subtitlesShown && !hasShownInitialHint;
+                hasShownInitialHint = true;
+                player.Play(currentVideo, showCaptionHint);
             };
             _forms.Add(form);
         }
