@@ -22,8 +22,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        VideoPlayer.PrepareLog();
-        VideoPlayer.Log($"AerialScreenSaver starting. Args: [{string.Join(", ", args.Select(arg => $"\"{arg}\""))}]");
+        Logging.PrepareLog();
+        Logging.Log($"AerialScreenSaver starting. Args: [{string.Join(", ", args.Select(arg => $"\"{arg}\""))}]");
 
         ApplicationConfiguration.Initialize();
 
@@ -128,7 +128,8 @@ internal static class Program
             EventResetMode.ManualReset,
             PreviewExitEventName);
         using var monitor = new System.Windows.Forms.Timer { Interval = 500 };
-        using var player = new VideoPlayer(parentHwnd, "preview");
+        using var previewHost = new System.Windows.Forms.Control();
+        using var player = new VideoPlayer(previewHost, "preview");
         Video video = availableVideos[Random.Shared.Next(availableVideos.Length)];
         monitor.Tick += (_, _) =>
         {

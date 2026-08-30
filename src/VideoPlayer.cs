@@ -40,7 +40,7 @@ internal sealed class VideoPlayer : IDisposable
         if (_libVlc is not null)
             return;
 
-        Log("Initializing LibVLC core...");
+        Logging.Log("Initializing LibVLC core...");
         Core.Initialize();
 
         // Point the core at the deployed native binaries explicitly, in case
@@ -48,11 +48,11 @@ internal sealed class VideoPlayer : IDisposable
         var libDir = Path.Combine(AppContext.BaseDirectory, "libvlc", "win-x64");
         if (Directory.Exists(libDir))
         {
-            Log($"Native libvlc found at {libDir}");
+            Logging.Log($"Native libvlc found at {libDir}");
         }
         else
         {
-            Log($"WARNING: native libvlc directory missing: {libDir}");
+            Logging.Log($"WARNING: native libvlc directory missing: {libDir}");
         }
 
         string[] subtitleOptions = new string[]
@@ -66,7 +66,7 @@ internal sealed class VideoPlayer : IDisposable
         _libVlc = new LibVLC(enableDebugLogs: false,
             subtitleOptions);
         CaptionsState.SyncSubtitleStateFromDisk();
-        Log("LibVLC core initialized.");
+        Logging.Log("LibVLC core initialized.");
     }
 
     /// <param name="hostControl">
@@ -76,19 +76,6 @@ internal sealed class VideoPlayer : IDisposable
     /// show/DPI adjustment.
     /// </param>
     public VideoPlayer(System.Windows.Forms.Control hostControl, string name = "screen")
-        : this(hostControl, null, name)
-    {
-    }
-
-    public VideoPlayer(IntPtr hwnd, string name = "screen")
-        : this(null, hwnd, name)
-    {
-    }
-
-    private VideoPlayer(
-        System.Windows.Forms.Control? hostControl,
-        IntPtr? hwnd,
-        string name)
     {
         if (_libVlc is null)
             throw new InvalidOperationException(
@@ -157,7 +144,7 @@ internal sealed class VideoPlayer : IDisposable
 
         CaptionsState.SyncSubtitleStateFromDisk();
 
-        Log($"[{_name}] Play({url})");
+        Logging.Log($"[{_name}] Play({url})");
         _mediaPlayer.Stop();
         using var media = new Media(_libVlc!, url.AbsoluteUri, FromType.FromLocation);
 
@@ -182,7 +169,7 @@ internal sealed class VideoPlayer : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Log($"[{_name}] Subtitle retry failed: {ex.Message}");
+                    Logging.Log($"[{_name}] Subtitle retry failed: {ex.Message}");
                 }
             };
             retry.Start();
@@ -220,7 +207,7 @@ internal sealed class VideoPlayer : IDisposable
                 : SrtGeneration.GenerateFromDescription(_currentVideo.Description);
 
             File.WriteAllText(subtitlePath, srtContent);
-            Log($"[{_name}] Generated SRT file: {subtitlePath} ({srtContent.Length} chars)");
+            Logging.Log($"[{_name}] Generated SRT file: {subtitlePath} ({srtContent.Length} chars)");
 
             // Convert to file:// URL
             string fileUrl = new Uri(subtitlePath).AbsoluteUri;
@@ -230,7 +217,7 @@ internal sealed class VideoPlayer : IDisposable
         }
         catch (Exception ex)
         {
-            Log($"[{_name}] Failed to add subtitle: {ex.Message}");
+            Logging.Log($"[{_name}] Failed to add subtitle: {ex.Message}");
         }
     }
 
@@ -301,45 +288,5 @@ internal sealed class VideoPlayer : IDisposable
         }
     }
 
-    internal static void PrepareLog()
-    {
-        try
-        {
-            string logPath = GetLogPath();
-            if (!File.Exists(logPath))
-                return;
-
-            if (DateTime.Now - File.GetCreationTime(logPath) > TimeSpan.FromMinutes(5))
-            {
-                File.Delete(logPath);
-                File.WriteAllText(logPath, string.Empty);
-            }
-        }
-        catch (IOException)
-        {
-        }
-    }
-
-    internal static void Log(string message)
-    {
-        try
-        {
-            string logPath = GetLogPath();
-            File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
-        }
-        catch (IOException)
-        {
-            // Logging must never break playback.
-        }
-    }
-
-    private static string GetLogPath()
-    {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Aerial");
-        Directory.CreateDirectory(dir);
-        return Path.Combine(dir, "aerial-log.txt");
-    }
 }
 

@@ -9,7 +9,7 @@ namespace Aerial;
 internal sealed class VideoQueue : IDisposable
 {
     private readonly IReadOnlyList<Video> _videos;
-    private readonly List<ScreensaverForm> _forms = [];
+    private readonly List<ScreenSaverWindow> _forms = [];
     private readonly List<VideoPlayer> _players = [];
     private readonly HashSet<Video> _activeVideos = [];
     private readonly object _videoGate = new();
@@ -49,7 +49,7 @@ internal sealed class VideoQueue : IDisposable
 
         foreach (Screen screen in Screen.AllScreens)
         {
-            var form = new ScreensaverForm(screen);
+            var form = new ScreenSaverWindow(screen);
             var videoView = new VideoView
             {
                 Dock = DockStyle.Fill,

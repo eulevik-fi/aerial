@@ -23,15 +23,15 @@ internal static class AerialApp
     {
         ApplicationConfiguration.Initialize();
 
-        VideoPlayer.PrepareLog();
-        VideoPlayer.Log("=== AerialApp starting ===");
+        Logging.PrepareLog();
+        Logging.Log("=== AerialApp starting ===");
 
         VideoPlayer.InitializeCore();
         VideoController.InitializeAsync().GetAwaiter().GetResult();
-        VideoPlayer.Log($"Catalog URL: {CatalogUrl}");
+        Logging.Log($"Catalog URL: {CatalogUrl}");
         var catalog = new VideoCatalog(CatalogUrl);
         catalog.InitializeAsync().GetAwaiter().GetResult();
-        VideoPlayer.Log($"Catalog loaded: {catalog.Videos.Count} assets");
+        Logging.Log($"Catalog loaded: {catalog.Videos.Count} assets");
 
         using var idleTracker = new IdleExitTracker();
         var queue = new VideoQueue(catalog.Videos);

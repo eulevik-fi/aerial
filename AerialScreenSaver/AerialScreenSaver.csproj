@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <!-- Shared sources live in ..\src -->
-    <Compile Include="..\src\ScreensaverForm.cs" Link="src\ScreensaverForm.cs" />
+    <Compile Include="..\src\ScreenSaverWindow.cs" Link="src\ScreenSaverWindow.cs" />
     <Compile Include="..\src\Video.cs" Link="src\Video.cs" />
     <Compile Include="..\src\VideoController.cs" Link="src\VideoController.cs" />
     <Compile Include="..\src\VideoCatalog.cs" Link="src\VideoCatalog.cs" />
@@ -25,6 +25,7 @@
     <Compile Include="..\src\Downloader.cs" Link="src\Downloader.cs" />
     <Compile Include="..\src\SrtGeneration.cs" Link="src\SrtGeneration.cs" />
     <Compile Include="..\src\VideoPlayer.cs" Link="src\VideoPlayer.cs" />
+    <Compile Include="..\src\Logging.cs" Link="src\Logging.cs" />
     <Compile Include="..\src\IdleExitTracker.cs" Link="src\IdleExitTracker.cs" />
     <Compile Include="..\src\VideoQueue.cs" Link="src\VideoQueue.cs" />
 

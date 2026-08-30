@@ -75,23 +75,20 @@ internal static class VideoController
             : availableVideos[Random.Shared.Next(availableVideos.Length)];
     }
 
-    /// <summary>Records a played video, keeping the 10 most recent entries.</summary>
-    public static void RecordPlayed(Video video)
+    private static void AddRecentVideo(string absoluteUri)
     {
-        string[] recentVideos;
-        lock (MruGate)
-        {
-            RecentVideos.RemoveAll(existing =>
-                string.Equals(existing, video.Url.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
-            RecentVideos.Insert(0, video.Url.AbsoluteUri);
-            if (RecentVideos.Count > 10)
-                RecentVideos.RemoveRange(10, RecentVideos.Count - 10);
-            recentVideos = RecentVideos.ToArray();
-        }
+        RecentVideos.RemoveAll(existing =>
+            string.Equals(existing, absoluteUri, StringComparison.OrdinalIgnoreCase));
+        RecentVideos.Insert(0, absoluteUri);
+        if (RecentVideos.Count > 10)
+            RecentVideos.RemoveRange(10, RecentVideos.Count - 10);
+    }
 
+    private static void PersistRecentVideos()
+    {
         try
         {
-            File.WriteAllLines(MruPath, recentVideos);
+            File.WriteAllLines(MruPath, RecentVideos.ToArray());
         }
         catch (IOException)
         {
@@ -99,27 +96,23 @@ internal static class VideoController
         }
     }
 
+    /// <summary>Records a played video, keeping the 10 most recent entries.</summary>
+    public static void RecordPlayed(Video video)
+    {
+        lock (MruGate)
+        {
+            AddRecentVideo(video.Url.AbsoluteUri);
+            PersistRecentVideos();
+        }
+    }
+
     /// <summary>Compatibility overload for Uri.</summary>
     public static void RecordPlayed(Uri url)
     {
-        string[] recentVideos;
         lock (MruGate)
         {
-            RecentVideos.RemoveAll(existing =>
-                string.Equals(existing, url.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
-            RecentVideos.Insert(0, url.AbsoluteUri);
-            if (RecentVideos.Count > 10)
-                RecentVideos.RemoveRange(10, RecentVideos.Count - 10);
-            recentVideos = RecentVideos.ToArray();
-        }
-
-        try
-        {
-            File.WriteAllLines(MruPath, recentVideos);
-        }
-        catch (IOException)
-        {
-            // Persistence is best-effort; retain the in-memory MRU.
+            AddRecentVideo(url.AbsoluteUri);
+            PersistRecentVideos();
         }
     }
 

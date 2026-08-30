@@ -8,7 +8,7 @@ namespace Aerial;
 /// Full-screen black form shown on a single display. One instance is created
 /// per attached monitor so multi-monitor setups are covered.
 /// </summary>
-internal sealed class ScreensaverForm : Form
+internal sealed class ScreenSaverWindow : Form
 {
     private readonly Screen _screen;
     private bool _closed;
@@ -22,7 +22,7 @@ internal sealed class ScreensaverForm : Form
         set => _videoPlayer = value;
     }
 
-    public ScreensaverForm(Screen screen)
+    public ScreenSaverWindow(Screen screen)
     {
         _screen = screen;
         _shiftKeyDown = false;
@@ -107,7 +107,7 @@ internal sealed class ScreensaverForm : Form
         base.OnKeyUp(e);
     }
 
-    private bool IsShiftKey(KeyEventArgs e)
+    private static bool IsShiftKey(KeyEventArgs e)
     {
         return e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.LShiftKey || e.KeyCode == Keys.RShiftKey;
     }

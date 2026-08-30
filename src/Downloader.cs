@@ -15,7 +15,7 @@ internal sealed class Downloader
     private const string EntriesJsonFile = "entries.json";
     private const string LocalizableStringsFile = "Localizable.nocache.strings";
 
-    public async Task<string?> DownloadAsync(string url, string cacheFileName)
+    public static async Task<string?> DownloadAsync(string url, string cacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);
         string cachePath = Path.Combine(CacheDirectory, cacheFileName);
@@ -33,9 +33,14 @@ internal sealed class Downloader
                 Timeout = TimeSpan.FromSeconds(15),
             };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Aerial-Screensaver/1.0");
-            content = IsTarUrl(url)
-                ? ExtractFilesFromTar(http, url).Item1
-                : await http.GetStringAsync(url).ConfigureAwait(false);
+            if (IsTarUrl(url))
+            {
+                content = ExtractFilesFromTar(http, url).Json;
+            }
+            else
+            {
+                content = await http.GetStringAsync(url).ConfigureAwait(false);
+            }
 
             if (content is not null)
             {
@@ -58,7 +63,7 @@ internal sealed class Downloader
     }
 
     /// <summary>Downloads and caches binary plist file from tar archive.</summary>
-    public async Task<byte[]?> DownloadBinaryAsync(string url, string cacheFileName)
+    public static async Task<byte[]?> DownloadBinaryAsync(string url, string cacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);
         string cachePath = Path.Combine(CacheDirectory, cacheFileName);
@@ -78,7 +83,7 @@ internal sealed class Downloader
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Aerial-Screensaver/1.0");
 
             if (IsTarUrl(url))
-                content = ExtractFilesFromTar(http, url).Item2;
+                content = ExtractFilesFromTar(http, url).Binary;
 
             if (content is not null)
             {
@@ -106,7 +111,13 @@ internal sealed class Downloader
             uri.AbsolutePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static (string? Json, byte[]? Binary) ExtractFilesFromTar(HttpClient http, string url)
+    private sealed class TarExtractionResult
+    {
+        public string? Json { get; init; }
+        public byte[]? Binary { get; init; }
+    }
+
+    private static TarExtractionResult ExtractFilesFromTar(HttpClient http, string url)
     {
         byte[] archive = http.GetByteArrayAsync(url).GetAwaiter().GetResult();
         using var archiveStream = new MemoryStream(archive, writable: false);
@@ -139,6 +150,6 @@ internal sealed class Downloader
             }
         }
 
-        return (json, binary);
+        return new TarExtractionResult { Json = json, Binary = binary };
     }
 }

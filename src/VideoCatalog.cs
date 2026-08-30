@@ -8,13 +8,11 @@ namespace Aerial;
 internal sealed class VideoCatalog
 {
     private readonly string _url;
-    private readonly Downloader _downloader;
     private LocalizableStrings? _localizableStrings;
 
-    public VideoCatalog(string url, Downloader? downloader = null)
+    public VideoCatalog(string url)
     {
         _url = url;
-        _downloader = downloader ?? new Downloader();
     }
 
     public IReadOnlyList<Video> Videos { get; private set; } = [];
@@ -22,8 +20,8 @@ internal sealed class VideoCatalog
     public async Task InitializeAsync()
     {
         // Download both files in parallel
-        var jsonTask = _downloader.DownloadAsync(_url, "entries.json");
-        var plistTask = _downloader.DownloadBinaryAsync(_url, "Localizable.nocache.strings");
+        var jsonTask = Downloader.DownloadAsync(_url, "entries.json");
+        var plistTask = Downloader.DownloadBinaryAsync(_url, "Localizable.nocache.strings");
 
         await Task.WhenAll(jsonTask, plistTask).ConfigureAwait(false);
 

@@ -29,7 +29,7 @@ internal sealed class LocalizableStrings
         }
         catch (Exception ex)
         {
-            VideoPlayer.Log($"Failed to parse plist: {ex.Message}");
+            Logging.Log($"Failed to parse plist: {ex.Message}");
         }
     }
 
