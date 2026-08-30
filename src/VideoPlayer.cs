@@ -55,12 +55,26 @@ internal sealed class VideoPlayer : IDisposable
             Logging.Log($"WARNING: native libvlc directory missing: {libDir}");
         }
 
-        string[] subtitleOptions = new string[]
+        string[] subtitleOptions =
         {
-            "--freetype-font=Tahoma", // sans-serif, reliably available
-            "--freetype-rel-fontsize=36", // very small
+            // Positioning and sizing
+            "--freetype-rel-fontsize=48", // very small on large displays
             "--subsdec-align=9", // bottom left
-            "--sub-margin=30", // margin padding
+            "--sub-margin=30", // padding from the screen edge
+
+            // Font and base appearance
+            "--freetype-font=Segoe UI Semibold",
+            "--freetype-opacity=255",
+
+            // Outline styling
+            "--freetype-outline-thickness=1",
+            "--freetype-outline-opacity=0",
+
+            // Drop shadow styling
+            "--freetype-shadow-color=0",
+            "--freetype-shadow-opacity=140",
+            "--freetype-shadow-distance=0.07",
+            "--freetype-shadow-angle=-45.0"
         };
     
         _libVlc = new LibVLC(enableDebugLogs: false,
