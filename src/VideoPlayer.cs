@@ -12,76 +12,16 @@ namespace Aerial;
 /// </summary>
 internal sealed class VideoPlayer : IDisposable
 {
-    /// <summary>Shared LibVLC core - initialize once per process.</summary>
-    private static LibVLC? _libVlc;
-    
     /// <summary>Track all active VideoPlayer instances for global subtitle control.</summary>
     private static readonly List<VideoPlayer> _allPlayers = [];
     
-    /// <summary>Track whether subtitles are currently displayed across all players.</summary>
-    internal static bool _subtitlesShown = File.Exists(CaptionsState.GetUseCaptionsPath());
-
     private readonly MediaPlayer _mediaPlayer;
     private readonly System.Windows.Forms.Control? _hostControl;
     private readonly string _name;
-    private bool _disposed;
-    private volatile bool _shuttingDown;
     private Video? _currentVideo;
 
     public event Action? Ended;
     public event Action? Failed;
-
-    /// <summary>
-    /// Initializes the LibVLC core. Call once at startup, before creating any
-    /// VideoPlayer instances.
-    /// </summary>
-    public static void InitializeCore()
-    {
-        if (_libVlc is not null)
-            return;
-
-        Logging.Log("Initializing LibVLC core...");
-        Core.Initialize();
-
-        // Point the core at the deployed native binaries explicitly, in case
-        // automatic resolution picks the wrong location.
-        var libDir = Path.Combine(AppContext.BaseDirectory, "libvlc", "win-x64");
-        if (Directory.Exists(libDir))
-        {
-            Logging.Log($"Native libvlc found at {libDir}");
-        }
-        else
-        {
-            Logging.Log($"WARNING: native libvlc directory missing: {libDir}");
-        }
-
-        string[] subtitleOptions =
-        {
-            // Positioning and sizing
-            "--freetype-rel-fontsize=48", // very small on large displays
-            "--subsdec-align=9", // bottom left
-            "--sub-margin=30", // padding from the screen edge
-
-            // Font and base appearance
-            "--freetype-font=Segoe UI Semibold",
-            "--freetype-opacity=255",
-
-            // Outline styling
-            "--freetype-outline-thickness=1",
-            "--freetype-outline-opacity=0",
-
-            // Drop shadow styling
-            "--freetype-shadow-color=0",
-            "--freetype-shadow-opacity=140",
-            "--freetype-shadow-distance=0.07",
-            "--freetype-shadow-angle=-45.0"
-        };
-    
-        _libVlc = new LibVLC(enableDebugLogs: false,
-            subtitleOptions);
-        CaptionsState.SyncSubtitleStateFromDisk();
-        Logging.Log("LibVLC core initialized.");
-    }
 
     /// <param name="hostControl">
     /// The control whose surface the video is rendered onto. The handle is
@@ -91,26 +31,20 @@ internal sealed class VideoPlayer : IDisposable
     /// </param>
     public VideoPlayer(System.Windows.Forms.Control hostControl, string name = "screen")
     {
-        if (_libVlc is null)
-            throw new InvalidOperationException(
-                "Call VideoPlayer.InitializeCore() before creating a VideoPlayer.");
-
         _hostControl = hostControl;
         _name = name;
-        _mediaPlayer = new MediaPlayer(_libVlc)
+        _mediaPlayer = new MediaPlayer(VLCManager.Instance)
         {
             EnableHardwareDecoding = true,
         };
 
         _mediaPlayer.EndReached += (_, _) =>
         {
-            if (!_shuttingDown)
-                Ended?.Invoke();
+            Ended?.Invoke();
         };
         _mediaPlayer.EncounteredError += (_, _) =>
         {
-            if (!_shuttingDown)
-                Failed?.Invoke();
+            Failed?.Invoke();
         };
         
         // Register this player in the global list
@@ -138,19 +72,9 @@ internal sealed class VideoPlayer : IDisposable
     }
 
     /// <summary>Starts streaming playback of the given video.</summary>
-    public void Play(Video video)
+    public void Play(Video video, bool showHelpCaption = false, MonitorInfo? monitorInfo = null)
     {
-        Play(video, showHelpCaption: false, monitorInfo: null);
-    }
-
-    public void Play(Video video, MonitorInfo? monitorInfo)
-    {
-        Play(video, showHelpCaption: false, monitorInfo);
-    }
-
-    public void Play(Video video, bool showHelpCaption, MonitorInfo? monitorInfo)
-    {
-        if (_shuttingDown || _disposed || video is null)
+        if (video is null)
             return;
 
         _currentVideo = video;
@@ -166,11 +90,9 @@ internal sealed class VideoPlayer : IDisposable
             url = builder.Uri;
         }
 
-        CaptionsState.SyncSubtitleStateFromDisk();
-
         Logging.Log($"[{_name}] Play({url})");
         _mediaPlayer.Stop();
-        using var media = new Media(_libVlc!, url.AbsoluteUri, FromType.FromLocation);
+        using var media = new Media(VLCManager.Instance, url.AbsoluteUri, FromType.FromLocation);
 
         media.AddOption(":no-gnutls-system-trust");
         media.AddOption(":http-reconnect");
@@ -182,35 +104,12 @@ internal sealed class VideoPlayer : IDisposable
             return;
         }
 
-        bool shouldRetry = _subtitlesShown && !IsPreviewPlayer(_name);
-        if (shouldRetry)
-        {
-            var retry = new System.Windows.Forms.Timer
-            {
-                Interval = 250,
-            };
-            retry.Tick += (_, _) =>
-            {
-                try
-                {
-                    retry.Stop();
-                    retry.Dispose();
-                    if (shouldRetry)
-                        AddSubtitle();
-                }
-                catch (Exception ex)
-                {
-                    Logging.Log($"[{_name}] Subtitle retry failed: {ex.Message}");
-                }
-            };
-            retry.Start();
-        }
+        AddSubtitle();
     }
 
 
     public void Stop()
     {
-        BeginShutdown();
         _mediaPlayer.Stop();
     }
 
@@ -222,10 +121,13 @@ internal sealed class VideoPlayer : IDisposable
     private bool CanAddSubtitle()
     {
         return !IsPreviewPlayer(_name) &&
-               !_shuttingDown &&
-               !_disposed &&
                _mediaPlayer.Media is not null &&
                _currentVideo is not null;
+    }
+
+    private bool CanHideSubtitle()
+    {
+        return !IsPreviewPlayer(_name);
     }
 
     public void AddSubtitle()
@@ -265,66 +167,52 @@ internal sealed class VideoPlayer : IDisposable
     /// <summary>Add subtitle to all active players.</summary>
     public static void AddSubtitleToAll()
     {
-        lock (_allPlayers)
-        {
-            foreach (var player in _allPlayers)
-            {
-                if (IsPreviewPlayer(player._name))
-                    continue;
-
-                player.AddSubtitle();
-            }
-        }
-        _subtitlesShown = true;
-        CaptionsState.PersistSubtitleState(_subtitlesShown);
+        ForAllNonPreviewPlayers(player => player.AddSubtitle());
     }
 
     /// <summary>Hide subtitles on all active players by setting SPU to -1.</summary>
     public static void HideSubtitlesFromAll()
     {
+        ForAllNonPreviewPlayers(player =>
+        {
+            if (player.CanHideSubtitle())
+            {
+                player._mediaPlayer.SetSpu(-1);
+            }
+        });
+    }
+
+    /// <summary>Execute an action on all non-preview players.</summary>
+    private static void ForAllNonPreviewPlayers(Action<VideoPlayer> action)
+    {
+        VideoPlayer[] players;
+
         lock (_allPlayers)
         {
-            foreach (var player in _allPlayers)
-            {
-                if (IsPreviewPlayer(player._name))
-                    continue;
-
-                if (!player._shuttingDown && !player._disposed)
-                {
-                    player._mediaPlayer.SetSpu(-1);
-                }
-            }
+            players = _allPlayers
+                .Where(player => !IsPreviewPlayer(player._name))
+                .ToArray();
         }
-        _subtitlesShown = false;
-        CaptionsState.PersistSubtitleState(_subtitlesShown);
+
+        foreach (var player in players)
+            action(player);
     }
 
     /// <summary>Toggle subtitle display on all players between shown and hidden.</summary>
     public static void ToggleSubtitles()
     {
-        if (_subtitlesShown)
-        {
-            HideSubtitlesFromAll();
-        }
-        else
+        if (CaptionsState.ToggleSubtitles())
         {
             AddSubtitleToAll();
         }
-    }
-
-    public void BeginShutdown()
-    {
-        _shuttingDown = true;
+        else
+        {
+            HideSubtitlesFromAll();
+        }
     }
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
-
-        BeginShutdown();
-        _disposed = true;
-
         _mediaPlayer.Stop();
         _mediaPlayer.Dispose();
         

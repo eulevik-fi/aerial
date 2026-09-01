@@ -34,10 +34,7 @@ internal sealed class KeyHandler
     {
         if (IsShiftKey(e))
         {
-            if (_shiftKeyDown)
-            {
-                _shiftKeyDown = false;
-            }
+            _shiftKeyDown = false;
             e.Handled = true;
             return;
         }

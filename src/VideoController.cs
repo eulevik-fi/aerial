@@ -10,13 +10,14 @@ namespace Aerial;
 /// </summary>
 internal static class VideoController
 {
+    private const int MruLimit = 10;
     private static readonly string CacheDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Aerial");
 
     private static string MruPath => Path.Combine(CacheDirectory, "video-mru.txt");
     private static readonly object MruGate = new();
-    private static readonly List<string> RecentVideos = [];
+    private static readonly LinkedList<string> RecentVideos = [];
 
     /// <summary>Loads the recently played video list.</summary>
     public static async Task InitializeAsync()
@@ -29,7 +30,8 @@ internal static class VideoController
     {
         lock (MruGate)
         {
-            return RecentVideos.Contains(video.Url.AbsoluteUri, StringComparer.OrdinalIgnoreCase);
+            return RecentVideos.Any(url =>
+                string.Equals(url, video.Url.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -51,18 +53,30 @@ internal static class VideoController
 
     private static void AddRecentVideo(string absoluteUri)
     {
-        RecentVideos.RemoveAll(existing =>
-            string.Equals(existing, absoluteUri, StringComparison.OrdinalIgnoreCase));
-        RecentVideos.Insert(0, absoluteUri);
-        if (RecentVideos.Count > 10)
-            RecentVideos.RemoveRange(10, RecentVideos.Count - 10);
+        // Find and remove existing entry (case-insensitive)
+        var existing = RecentVideos.FirstOrDefault(url =>
+            string.Equals(url, absoluteUri, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+            RecentVideos.Remove(existing);
+
+        // Add to front
+        RecentVideos.AddFirst(absoluteUri);
+        TrimMruToLimit();
+    }
+
+    private static void TrimMruToLimit()
+    {
+        while (RecentVideos.Count > MruLimit)
+        {
+            RecentVideos.RemoveLast();
+        }
     }
 
     private static void PersistRecentVideos()
     {
         try
         {
-            File.WriteAllLines(MruPath, RecentVideos.ToArray());
+            File.WriteAllLines(MruPath, RecentVideos);
         }
         catch (IOException)
         {
@@ -70,7 +84,7 @@ internal static class VideoController
         }
     }
 
-    /// <summary>Records a played video, keeping the 10 most recent entries.</summary>
+    /// <summary>Records a played video, keeping the most recent entries up to the MRU limit.</summary>
     public static void RecordPlayed(Video video)
     {
         lock (MruGate)
@@ -91,10 +105,11 @@ internal static class VideoController
             foreach (string url in File.ReadLines(MruPath))
             {
                 if (!string.IsNullOrWhiteSpace(url) &&
-                    !RecentVideos.Contains(url, StringComparer.OrdinalIgnoreCase))
-                    RecentVideos.Add(url);
+                    !RecentVideos.Any(existing =>
+                        string.Equals(existing, url, StringComparison.OrdinalIgnoreCase)))
+                    RecentVideos.AddLast(url);
 
-                if (RecentVideos.Count == 10)
+                if (RecentVideos.Count == MruLimit)
                     break;
             }
         }

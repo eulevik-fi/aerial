@@ -10,12 +10,13 @@
     <MajorUpgrade
       AllowSameVersionUpgrades="yes"
       DowngradeErrorMessage="A newer version of Aerial Screen Saver is already installed." />
+    <Launch Condition="VersionNT >= 10.0" Message="This product requires Windows 10 build 19045 or later." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="AerialIcon" SourceFile="$(var.SourceDir)\Aerial.ico" />
 
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="PROGRAMSDIR" Name="Programs">
-        <Directory Id="INSTALLFOLDER" Name="Aerial Screen Saver">
+        <Directory Id="INSTALLFOLDER" Name="Aerial">
           <Directory Id="LIBVLCDIR" Name="libvlc">
             <Directory Id="LIBVLCX64DIR" Name="win-x64" />
           </Directory>
@@ -28,30 +29,28 @@
     </StandardDirectory>
 
     <Feature Id="MainFeature" Title="Aerial Screen Saver" Level="1">
-      <ComponentRef Id="RegisterScreensaverShortcut" />
+      <ComponentRef Id="SetupAerialShortcut" />
       <Files Include="$(var.SourceDir)\**" Directory="INSTALLFOLDER">
-        <Exclude Files="$(var.SourceDir)\Setup Aerial.vbs" />
         <Exclude Files="$(var.SourceDir)\AerialApp*" />
+        <Exclude Files="$(var.SourceDir)\AerialSetup.exe" />
         <Exclude Files="$(var.SourceDir)\**\*.pdb" />
       </Files>
     </Feature>
 
-    <Component Id="RegisterScreensaverShortcut" Directory="INSTALLFOLDER" Guid="*">
-      <File Id="RegisterScreensaverLauncher" Source="$(var.SourceDir)\Setup Aerial.vbs" />
+    <Component Id="SetupAerialShortcut" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="SetupAerialLauncher" Source="$(var.SourceDir)\AerialSetup.exe" KeyPath="yes" />
       <Shortcut
         Id="SetupAerialDesktopShortcut"
         Directory="DesktopFolder"
         Name="Setup Aerial"
-        Target="[SystemFolder]wscript.exe"
-        Arguments="&quot;[INSTALLFOLDER]Setup Aerial.vbs&quot;"
+        Target="[INSTALLFOLDER]AerialSetup.exe"
         Icon="AerialIcon"
         WorkingDirectory="INSTALLFOLDER" />
       <Shortcut
         Id="SetupAerialStartMenuShortcut"
         Directory="PROGRAMMENUAERIALFOLDER"
         Name="Setup Aerial"
-        Target="[SystemFolder]wscript.exe"
-        Arguments="&quot;[INSTALLFOLDER]Setup Aerial.vbs&quot;"
+        Target="[INSTALLFOLDER]AerialSetup.exe"
         Icon="AerialIcon"
         WorkingDirectory="INSTALLFOLDER" />
     </Component>
@@ -59,7 +58,7 @@
     <CustomAction
         Id="RunSetupAerial"
         Directory="SystemFolder"
-        ExeCommand="wscript.exe &quot;[INSTALLFOLDER]Setup Aerial.vbs&quot;"
+        ExeCommand="&quot;[INSTALLFOLDER]AerialSetup.exe&quot;"
         Execute="commit"
         Impersonate="yes"
         Return="asyncNoWait" />

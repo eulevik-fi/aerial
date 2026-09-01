@@ -1,5 +1,4 @@
 using System;
-using System.Formats.Tar;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -20,19 +19,11 @@ internal sealed class Downloader
 
         try
         {
-            using var handler = new HttpClientHandler
+            using var http = CreateHttpClient();
+            if (TarExtraction.IsTarUrl(url))
             {
-                ServerCertificateCustomValidationCallback =
-                    HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-            };
-            using var http = new HttpClient(handler)
-            {
-                Timeout = TimeSpan.FromSeconds(15),
-            };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("Aerial-Screensaver/1.0");
-            if (IsTarUrl(url))
-            {
-                content = ExtractFilesFromTar(http, url).Json;
+                byte[] archive = await http.GetByteArrayAsync(url).ConfigureAwait(false);
+                content = TarExtraction.ExtractFiles(archive).Json;
             }
             else
             {
@@ -41,13 +32,7 @@ internal sealed class Downloader
 
             if (content is not null)
             {
-                try
-                {
-                    await File.WriteAllTextAsync(cachePath, content).ConfigureAwait(false);
-                }
-                catch (IOException)
-                {
-                }
+                await TryCacheContentAsync(cachePath, () => File.WriteAllTextAsync(cachePath, content));
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
@@ -68,29 +53,16 @@ internal sealed class Downloader
 
         try
         {
-            using var handler = new HttpClientHandler
+            using var http = CreateHttpClient();
+            if (TarExtraction.IsTarUrl(url))
             {
-                ServerCertificateCustomValidationCallback =
-                    HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-            };
-            using var http = new HttpClient(handler)
-            {
-                Timeout = TimeSpan.FromSeconds(15),
-            };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("Aerial-Screensaver/1.0");
-
-            if (IsTarUrl(url))
-                content = ExtractFilesFromTar(http, url).Binary;
+                byte[] archive = await http.GetByteArrayAsync(url).ConfigureAwait(false);
+                content = TarExtraction.ExtractFiles(archive).Binary;
+            }
 
             if (content is not null)
             {
-                try
-                {
-                    await File.WriteAllBytesAsync(cachePath, content).ConfigureAwait(false);
-                }
-                catch (IOException)
-                {
-                }
+                await TryCacheContentAsync(cachePath, () => File.WriteAllBytesAsync(cachePath, content));
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
@@ -102,51 +74,69 @@ internal sealed class Downloader
         return content;
     }
 
-    private static bool IsTarUrl(string url)
+    /// <summary>Downloads and caches both JSON and binary files from a tar archive.</summary>
+    public static async Task<(string? Json, byte[]? Binary)> DownloadTarAsync(string url, string jsonCacheFileName, string binaryCacheFileName)
     {
-        return Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) &&
-            uri.AbsolutePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private sealed class TarExtractionResult
-    {
-        public string? Json { get; init; }
-        public byte[]? Binary { get; init; }
-    }
-
-    private static TarExtractionResult ExtractFilesFromTar(HttpClient http, string url)
-    {
-        byte[] archive = http.GetByteArrayAsync(url).GetAwaiter().GetResult();
-        using var archiveStream = new MemoryStream(archive, writable: false);
-        using var reader = new TarReader(archiveStream);
-
+        Directory.CreateDirectory(CacheDirectory);
+        string jsonCachePath = Path.Combine(CacheDirectory, jsonCacheFileName);
+        string binaryCachePath = Path.Combine(CacheDirectory, binaryCacheFileName);
         string? json = null;
         byte[]? binary = null;
 
-        TarEntry? entry;
-        while ((entry = reader.GetNextEntry(copyData: true)) is not null)
+        try
         {
-            if (entry.EntryType != TarEntryType.RegularFile || entry.DataStream is null)
-                continue;
+            using var http = CreateHttpClient();
+            byte[] archive = await http.GetByteArrayAsync(url).ConfigureAwait(false);
+            var extracted = TarExtraction.ExtractFiles(archive);
+            json = extracted.Json;
+            binary = extracted.Binary;
 
-            if (string.Equals(entry.Name, "./entries.json", StringComparison.Ordinal))
+            if (json is not null)
             {
-                using var contentReader = new StreamReader(entry.DataStream);
-                json = contentReader.ReadToEnd();
-                continue;
+                await TryCacheContentAsync(jsonCachePath, () => File.WriteAllTextAsync(jsonCachePath, json));
             }
 
-            if (string.Equals(
-                    entry.Name,
-                    "./TVIdleScreenStrings.bundle/en.lproj/Localizable.nocache.strings",
-                    StringComparison.Ordinal))
+            if (binary is not null)
             {
-                using var ms = new MemoryStream();
-                entry.DataStream.CopyTo(ms);
-                binary = ms.ToArray();
+                await TryCacheContentAsync(binaryCachePath, () => File.WriteAllBytesAsync(binaryCachePath, binary));
             }
         }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
+        {
+            if (File.Exists(jsonCachePath))
+                json = await File.ReadAllTextAsync(jsonCachePath).ConfigureAwait(false);
 
-        return new TarExtractionResult { Json = json, Binary = binary };
+            if (File.Exists(binaryCachePath))
+                binary = await File.ReadAllBytesAsync(binaryCachePath).ConfigureAwait(false);
+        }
+
+        return (json, binary);
     }
+
+    private static HttpClient CreateHttpClient()
+    {
+        var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback =
+                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+        };
+        var http = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(15),
+        };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("Aerial-Screensaver/1.0");
+        return http;
+    }
+
+    private static async Task TryCacheContentAsync(string cachePath, Func<Task> writeOperation)
+    {
+        try
+        {
+            await writeOperation().ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+        }
+    }
+
 }

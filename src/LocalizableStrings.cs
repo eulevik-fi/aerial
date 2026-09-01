@@ -42,7 +42,8 @@ internal sealed class LocalizableStrings
         if (string.IsNullOrWhiteSpace(key))
             return null;
 
-        return _localizations.TryGetValue(key, out var value) ? value : null;
+        _localizations.TryGetValue(key, out var value);
+        return value;
     }
 
     private void ExtractStrings(NSObject obj)

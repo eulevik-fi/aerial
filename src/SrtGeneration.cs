@@ -27,18 +27,20 @@ internal static class SrtGeneration
                 continue;
 
             int startSeconds = current.Key;
-            int endSeconds = Math.Max(startSeconds, nextStart);
-            if (endSeconds <= startSeconds)
-            {
-                endSeconds = startSeconds + 1;
-            }
+            int endSeconds = CalculateEndSeconds(startSeconds, nextStart);
 
             string startTime = TimeSpan.FromSeconds(startSeconds).ToString(@"hh\:mm\:ss\,fff");
             string endTime = TimeSpan.FromSeconds(endSeconds).ToString(@"hh\:mm\:ss\,fff");
-            lines.Add($"1\n{startTime} --> {endTime}\n{text}");
+            lines.Add($"1{Environment.NewLine}{startTime} --> {endTime}{Environment.NewLine}{text}");
         }
 
         return string.Join(Environment.NewLine + Environment.NewLine, lines);
+    }
+
+    private static int CalculateEndSeconds(int startSeconds, int nextStart)
+    {
+        // Use nextStart if it's after the current subtitle, otherwise add 1 second
+        return nextStart > startSeconds ? nextStart : startSeconds + 1;
     }
 
     public static string GenerateFromDescription(string description)
