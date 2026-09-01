@@ -9,7 +9,7 @@ namespace Aerial;
 /// </summary>
 internal sealed class MonitorInfo
 {
-    private static readonly List<MonitorInfo> _all = DiscoverMonitors();
+    private static List<MonitorInfo>? _all;
 
     public string Name { get; }
     public int Width { get; }
@@ -35,15 +35,18 @@ internal sealed class MonitorInfo
         Screen = screen;
     }
 
-    public static IReadOnlyList<MonitorInfo> All => _all;
+    /// <summary>
+    /// Lazily initialized list of all monitors discovered at startup.
+    /// Call Discover() to force rediscovery after hardware changes.
+    /// </summary>
+    public static IReadOnlyList<MonitorInfo> All => _all ??= DiscoverMonitors();
 
     public bool IsLargeDisplay => Width > 1920 || Height > 1080;
 
+    /// <summary>Force rediscovery of monitors (e.g., after display configuration changes).</summary>
     public static IReadOnlyList<MonitorInfo> Discover()
     {
-        var discovered = DiscoverMonitors();
-        _all.Clear();
-        _all.AddRange(discovered);
+        _all = DiscoverMonitors();
         return _all;
     }
 

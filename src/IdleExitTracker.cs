@@ -24,7 +24,7 @@ internal sealed class IdleExitTracker : IDisposable
             try
             {
                 // Ignore mouse movement for the first second to prevent accidental exit
-                if ((DateTime.Now - _startTime).TotalSeconds < 1)
+                if (IsWithinGracePeriod())
                 {
                     _lastMousePos = Cursor.Position;
                     return;
@@ -44,6 +44,11 @@ internal sealed class IdleExitTracker : IDisposable
             }
         };
         _timer.Start();
+    }
+
+    private bool IsWithinGracePeriod()
+    {
+        return (DateTime.Now - _startTime).TotalSeconds < 1;
     }
 
     public static void Exit()

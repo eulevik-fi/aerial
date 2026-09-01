@@ -10,6 +10,7 @@
     <MajorUpgrade
       AllowSameVersionUpgrades="yes"
       DowngradeErrorMessage="A newer version of Aerial Screen Saver is already installed." />
+    <Launch Condition="VersionNT >= 10.0" Message="This product requires Windows 10 build 19045 or later." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="AerialIcon" SourceFile="$(var.SourceDir)\Aerial.ico" />
 
@@ -28,7 +29,7 @@
     </StandardDirectory>
 
     <Feature Id="MainFeature" Title="Aerial Screen Saver" Level="1">
-      <ComponentRef Id="RegisterScreensaverShortcut" />
+      <ComponentRef Id="SetupAerialShortcut" />
       <Files Include="$(var.SourceDir)\**" Directory="INSTALLFOLDER">
         <Exclude Files="$(var.SourceDir)\Setup Aerial.vbs" />
         <Exclude Files="$(var.SourceDir)\AerialApp*" />
@@ -36,8 +37,8 @@
       </Files>
     </Feature>
 
-    <Component Id="RegisterScreensaverShortcut" Directory="INSTALLFOLDER" Guid="*">
-      <File Id="RegisterScreensaverLauncher" Source="$(var.SourceDir)\Setup Aerial.vbs" />
+    <Component Id="SetupAerialShortcut" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="SetupAerialLauncher" Source="$(var.SourceDir)\Setup Aerial.vbs" />
       <Shortcut
         Id="SetupAerialDesktopShortcut"
         Directory="DesktopFolder"
