@@ -8,10 +8,10 @@ namespace Aerial;
 
 internal static class Program
 {
-    // private const string CatalogUrl = "http://a1.phobos.apple.com/us/r1000/000/Features/atv/AutumnResources/videos/entries.json";
-    private const string CatalogUrl = "https://sylvan.apple.com/itunes-assets/Aerials126/v4/c0/45/d9/c045d9d0-9606-1535-62fe-189edb4f79eb/resources-atv-23J-2.tar";
-
     internal const string PreviewExitEventName = "Local\\Aerial-Screensaver-Preview-Exit";
+    private const string MutexName = "Local\\Aerial-Screensaver-Instance";
+    
+    private static Mutex? _instanceMutex;
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);
@@ -49,40 +49,7 @@ internal static class Program
             };
 
             ApplicationConfiguration.Initialize();
-
-            string arg = args.Length > 0 ? args[0].ToLowerInvariant() : string.Empty;
-
-            switch (arg)
-            {
-                case "/s":
-                case "-s":
-                    RunFullScreen();
-                    return 0;
-
-                case "/c":
-                case "-c":
-                    SignalPreviewExit();
-                    ShowOptionsMessage();
-                    return 0;
-
-                case "/p":
-                case "-p":
-                    if (args.Length >= 2 && long.TryParse(args[1], out long hwndValue))
-                    {
-                        ShowPreview(new IntPtr(hwndValue));
-                    }
-                    return 0;
-
-                default:
-                    if (arg.StartsWith("/c:", StringComparison.OrdinalIgnoreCase) ||
-                        arg.StartsWith("-c:", StringComparison.OrdinalIgnoreCase))
-                    {
-                        SignalPreviewExit();
-                        ShowOptionsMessage();
-                        return 0;
-                    }
-                    return 0;
-                }
+            return HandleCommand(args);
         }
         catch (Exception ex)
         {
@@ -96,6 +63,92 @@ internal static class Program
                 // If logging fails, silently continue
             }
             return 1;
+        }
+    }
+
+    private static int HandleCommand(string[] args)
+    {
+        string arg = args.Length > 0 ? args[0].ToLowerInvariant() : string.Empty;
+
+        switch (arg)
+        {
+            case "/s":
+            case "-s":
+                return RunFullScreenMode();
+
+            case "/c":
+            case "-c":
+                return RunConfigMode();
+
+            case "/p":
+            case "-p":
+                return RunPreviewMode(args);
+
+            default:
+                return IsConfigArgument(arg) ? RunConfigMode() : 0;
+        }
+    }
+
+    private static bool IsConfigArgument(string arg)
+    {
+        return arg.StartsWith("/c:", StringComparison.OrdinalIgnoreCase) ||
+               arg.StartsWith("-c:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int RunFullScreenMode()
+    {
+        if (!TryAcquireInstanceMutex())
+        {
+            Logging.Log("Another instance of the screen saver is already running. Exiting.");
+            return 0;
+        }
+
+        try
+        {
+            RunFullScreen();
+        }
+        finally
+        {
+            _instanceMutex?.Dispose();
+        }
+
+        return 0;
+    }
+
+    private static int RunConfigMode()
+    {
+        SignalPreviewExit();
+        ShowOptionsMessage();
+        return 0;
+    }
+
+    private static int RunPreviewMode(string[] args)
+    {
+        if (args.Length >= 2 && long.TryParse(args[1], out long hwndValue))
+        {
+            ShowPreview(new IntPtr(hwndValue));
+        }
+
+        return 0;
+    }
+
+    private static bool TryAcquireInstanceMutex()
+    {
+        try
+        {
+            _instanceMutex = new Mutex(true, MutexName, out bool createdNew);
+            if (!createdNew)
+            {
+                _instanceMutex.Dispose();
+                _instanceMutex = null;
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"Error acquiring instance mutex: {ex.Message}");
+            return false;
         }
     }
 
@@ -128,12 +181,7 @@ internal static class Program
         {
             MonitorInfo.Discover();
 
-            // Initialize LibVLC and load the shared URL collection.
-            VideoPlayer.InitializeCore();
-            // Fetch (or refresh) the video catalog before showing anything.
-            VideoController.InitializeAsync().GetAwaiter().GetResult();
-            var catalog = new VideoCatalog(CatalogUrl);
-            catalog.InitializeAsync().GetAwaiter().GetResult();
+            var catalog = InitializePlayback();
 
             using var idleTracker = new IdleExitTracker();
             var queue = new VideoQueue(catalog.Videos);
@@ -141,6 +189,7 @@ internal static class Program
                 return;
 
             idleTracker.Start();
+            HandleMonitorPower();
 
             Application.Run();
             queue.Dispose();
@@ -152,6 +201,38 @@ internal static class Program
         }
     }
 
+    // Done by hand, because Windows disables monitor sleep with full-screen hardware-accelerated video.
+    private static void HandleMonitorPower()
+    {
+        int registryMonitorTimeoutSeconds = RegistryPowerReader.GetRegistryMonitorTimeoutInSeconds();
+        Logging.Log($"[MonitorPower] ScreenSaver timeout in seconds: {registryMonitorTimeoutSeconds}");
+
+        if (registryMonitorTimeoutSeconds == 0)
+        {
+            return;
+        }
+
+        var turnOffMonitorsTimer = new System.Windows.Forms.Timer { Interval = registryMonitorTimeoutSeconds * 1000 };
+        turnOffMonitorsTimer.Tick += (_, _) =>
+        {
+            try
+            {
+                Logging.Log($"[MonitorPower] Turning off monitors after {registryMonitorTimeoutSeconds} seconds.");
+                MonitorPower.TurnOffMonitors();
+            }
+            catch (Exception ex)
+            {
+                Logging.Log($"[MonitorPower] TurnOffMonitors failed: {ex.GetType().Name}: {ex.Message}");
+            }
+            finally
+            {
+                turnOffMonitorsTimer.Stop();
+                turnOffMonitorsTimer.Dispose();
+            }
+        };
+        turnOffMonitorsTimer.Start();
+    }
+
     /// <summary>/p <hwnd> - render inside the little preview window of the
     /// Windows screensaver settings dialog.</summary>
     private static void ShowPreview(IntPtr parentHwnd)
@@ -161,10 +242,7 @@ internal static class Program
             if (parentHwnd == IntPtr.Zero)
                 return;
 
-            VideoPlayer.InitializeCore();
-            VideoController.InitializeAsync().GetAwaiter().GetResult();
-            var catalog = new VideoCatalog(CatalogUrl);
-            catalog.InitializeAsync().GetAwaiter().GetResult();
+            var catalog = InitializePlayback();
 
             var availableVideos = catalog.Videos
                 .Where(video => !VideoController.IsInMru(video))
@@ -205,5 +283,18 @@ internal static class Program
             Logging.Log($"[ShowPreview Error] {ex.GetType().Name}: {ex.Message}");
             Logging.Log($"StackTrace: {ex.StackTrace}");
         }
+    }
+
+    /// <summary>Initializes LibVLC and loads the video catalog.</summary>
+    private static IVideoCatalog InitializePlayback()
+    {
+        // Initialize LibVLC and load the shared URL collection.
+        VideoPlayer.InitializeCore();
+        // Fetch (or refresh) the video catalog before showing anything.
+        VideoController.InitializeAsync().GetAwaiter().GetResult();
+        // var catalog = new VideoCatalog_tvOS10();
+        var catalog = new VideoCatalog_tvOS26();
+        catalog.InitializeAsync().GetAwaiter().GetResult();
+        return catalog;
     }
 }

@@ -92,10 +92,7 @@ internal sealed class ScreenSaverWindow : Form
             MonitorInfo.Discover();
 
             // Update this window's bounds to the current monitor's bounds
-            if (_monitorInfo.Screen is not null)
-            {
-                Bounds = _monitorInfo.Screen.Bounds;
-            }
+            Bounds = _monitorInfo.Screen.Bounds;
 
             // Reset the grace period timer so inputs are ignored for 1 second after display change
             _showTime = DateTime.Now;
@@ -113,6 +110,11 @@ internal sealed class ScreenSaverWindow : Form
         }
     }
 
+    private bool IsWithinGracePeriod()
+    {
+        return (DateTime.Now - _showTime).TotalSeconds < 1;
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         try
@@ -123,7 +125,7 @@ internal sealed class ScreenSaverWindow : Form
                 return;
 
             // Ignore keyboard input for the first second to prevent accidental exit
-            if ((DateTime.Now - _showTime).TotalSeconds < 1)
+            if (IsWithinGracePeriod())
                 return;
 
             CloseAll();
@@ -156,7 +158,7 @@ internal sealed class ScreenSaverWindow : Form
         try
         {
             // Ignore mouse input for the first second to prevent accidental exit
-            if ((DateTime.Now - _showTime).TotalSeconds < 1)
+            if (IsWithinGracePeriod())
                 return;
 
             CloseAll();
@@ -166,17 +168,6 @@ internal sealed class ScreenSaverWindow : Form
         {
             Logging.Log($"[OnMouseDown Error] {ex.GetType().Name}: {ex.Message}");
         }
-    }
-
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        // Only react to real movement once the mouse has entered the form,
-        // otherwise the initial placement triggers an immediate exit.
-        if (!_closed && ClientRectangle.Contains(PointToClient(Cursor.Position)))
-        {
-            // Handled by IdleExitTracker for cross-display accuracy.
-        }
-        base.OnMouseMove(e);
     }
 
     private void CloseAll()

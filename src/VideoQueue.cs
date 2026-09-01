@@ -9,8 +9,7 @@ namespace Aerial;
 internal sealed class VideoQueue : IDisposable
 {
     private readonly IReadOnlyList<Video> _videos;
-    private readonly List<ScreenSaverWindow> _forms = [];
-    private readonly List<VideoPlayer> _players = [];
+    private readonly List<MonitorDisplay> _displays = [];
     private readonly HashSet<Video> _activeVideos = [];
     private readonly object _videoGate = new();
     private bool _started;
@@ -24,15 +23,31 @@ internal sealed class VideoQueue : IDisposable
     public bool Start()
     {
         if (_started)
-            return _forms.Count > 0;
+            return _displays.Count > 0;
 
         _started = true;
+        var initialVideos = GetShuffledInitialVideos();
+        if (initialVideos.Count == 0)
+            return false;
+
+        foreach (var monitorInfo in MonitorInfo.All)
+        {
+            var form = CreateMonitorForm(monitorInfo);
+            var player = CreatePlayerForForm(form, monitorInfo, initialVideos);
+            _displays.Add(new MonitorDisplay(form, player));
+        }
+
+        foreach (var display in _displays)
+            display.Form.Show();
+
+        return true;
+    }
+
+    private List<Video> GetShuffledInitialVideos()
+    {
         var initialVideos = _videos
             .Where(video => !VideoController.IsInMru(video))
             .ToList();
-
-        if (initialVideos.Count == 0)
-            return false;
 
         for (int index = initialVideos.Count - 1; index > 0; index--)
         {
@@ -41,106 +56,113 @@ internal sealed class VideoQueue : IDisposable
                 (initialVideos[swapIndex], initialVideos[index]);
         }
 
-        foreach (var monitorInfo in MonitorInfo.All)
+        return initialVideos;
+    }
+
+    private ScreenSaverWindow CreateMonitorForm(MonitorInfo monitorInfo)
+    {
+        var form = new ScreenSaverWindow(monitorInfo);
+        var videoView = new VideoView
         {
-            var form = new ScreenSaverWindow(monitorInfo);
-            var videoView = new VideoView
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.Black,
-            };
-            form.Controls.Add(videoView);
+            Dock = DockStyle.Fill,
+            BackColor = Color.Black,
+        };
+        form.Controls.Add(videoView);
+        return form;
+    }
 
-            var player = new VideoPlayer(videoView, monitorInfo.Name);
-            _players.Add(player);
-            form.VideoPlayer = player;  // Connect player to form for shift key handling
-            bool hasShownInitialHint = false;
-            int nextVideoQueued = 0;
-            Video currentVideo;
-            lock (_videoGate)
-            {
-                currentVideo = initialVideos[_forms.Count % initialVideos.Count];
-                _activeVideos.Add(currentVideo);
-            }
+    private VideoPlayer CreatePlayerForForm(ScreenSaverWindow form, MonitorInfo monitorInfo, List<Video> initialVideos)
+    {
+        var player = new VideoPlayer(form.Controls[0] as VideoView ?? throw new InvalidOperationException("Expected video view."), monitorInfo.Name);
+        form.VideoPlayer = player;
 
-            void PlayNextVideo()
-            {
-                try
-                {
-                    Video? nextVideo;
-                    lock (_videoGate)
-                    {
-                        _activeVideos.Remove(currentVideo);
-                        nextVideo = VideoController.SelectNextVideo(_videos, currentVideo, _activeVideos);
-                        if (nextVideo is not null)
-                        {
-                            currentVideo = nextVideo;
-                            _activeVideos.Add(currentVideo);
-                        }
-                    }
-
-                    if (nextVideo is null || _disposed)
-                        return;
-
-                    VideoController.RecordPlayed(nextVideo);
-                    player.Play(nextVideo, monitorInfo);
-                }
-                catch (Exception ex)
-                {
-                    Logging.Log($"[PlayNextVideo Error] {ex.GetType().Name}: {ex.Message}");
-                }
-            }
-
-            void QueueNextVideo()
-            {
-                if (Interlocked.Exchange(ref nextVideoQueued, 1) != 0 ||
-                    _disposed ||
-                    form.IsDisposed ||
-                    !form.IsHandleCreated)
-                    return;
-
-                try
-                {
-                    form.BeginInvoke((Action)(() =>
-                    {
-                        Interlocked.Exchange(ref nextVideoQueued, 0);
-                        PlayNextVideo();
-                    }));
-                }
-                catch (InvalidOperationException)
-                {
-                    Interlocked.Exchange(ref nextVideoQueued, 0);
-                }
-            }
-
-            player.Ended += QueueNextVideo;
-            player.Failed += QueueNextVideo;
-
-            form.Shown += (_, _) =>
-            {
-                try
-                {
-                    if (_disposed)
-                        return;
-
-                    player.Attach();
-                    VideoController.RecordPlayed(currentVideo);
-                    bool showCaptionHint = !VideoPlayer._subtitlesShown && !hasShownInitialHint;
-                    hasShownInitialHint = true;
-                    player.Play(currentVideo, showCaptionHint, monitorInfo);
-                }
-                catch (Exception ex)
-                {
-                    Logging.Log($"[Form.Shown Error] {ex.GetType().Name}: {ex.Message}");
-                }
-            };
-            _forms.Add(form);
+        var state = new MonitorPlaybackState();
+        lock (_videoGate)
+        {
+            state.CurrentVideo = initialVideos[_displays.Count % initialVideos.Count];
+            _activeVideos.Add(state.CurrentVideo);
         }
 
-        foreach (var form in _forms)
-            form.Show();
+        player.Ended += () => QueueNextVideo(form, player, monitorInfo, state);
+        player.Failed += () => QueueNextVideo(form, player, monitorInfo, state);
 
-        return true;
+        form.Shown += (_, _) =>
+        {
+            try
+            {
+                if (_disposed)
+                    return;
+
+                player.Attach();
+                VideoController.RecordPlayed(state.CurrentVideo);
+                bool showCaptionHint = !VideoPlayer._subtitlesShown && !state.HasShownInitialHint;
+                state.HasShownInitialHint = true;
+                player.Play(state.CurrentVideo, showCaptionHint, monitorInfo);
+            }
+            catch (Exception ex)
+            {
+                Logging.Log($"[Form.Shown Error] {ex.GetType().Name}: {ex.Message}");
+            }
+        };
+
+        return player;
+    }
+
+    private void QueueNextVideo(ScreenSaverWindow form, VideoPlayer player, MonitorInfo monitorInfo, MonitorPlaybackState state)
+    {
+        if (Interlocked.Exchange(ref state.NextVideoQueued, 1) != 0 ||
+            _disposed ||
+            form.IsDisposed ||
+            !form.IsHandleCreated)
+            return;
+
+        try
+        {
+            form.BeginInvoke((Action)(() =>
+            {
+                Interlocked.Exchange(ref state.NextVideoQueued, 0);
+                PlayNextVideo(player, monitorInfo, state);
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref state.NextVideoQueued, 0);
+        }
+    }
+
+    private void PlayNextVideo(VideoPlayer player, MonitorInfo monitorInfo, MonitorPlaybackState state)
+    {
+        try
+        {
+            Video? nextVideo;
+            lock (_videoGate)
+            {
+                _activeVideos.Remove(state.CurrentVideo);
+                nextVideo = VideoController.SelectNextVideo(_videos, state.CurrentVideo, _activeVideos);
+                if (nextVideo is not null)
+                {
+                    state.CurrentVideo = nextVideo;
+                    _activeVideos.Add(state.CurrentVideo);
+                }
+            }
+
+            if (nextVideo is null || _disposed)
+                return;
+
+            VideoController.RecordPlayed(nextVideo);
+            player.Play(nextVideo, monitorInfo: monitorInfo);
+        }
+        catch (Exception ex)
+        {
+            Logging.Log($"[PlayNextVideo Error] {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private sealed class MonitorPlaybackState
+    {
+        public Video CurrentVideo { get; set; } = default!;
+        public int NextVideoQueued;
+        public bool HasShownInitialHint;
     }
 
     public void Dispose()
@@ -149,12 +171,15 @@ internal sealed class VideoQueue : IDisposable
             return;
 
         _disposed = true;
-        foreach (var player in _players)
-            player.BeginShutdown();
+        foreach (var display in _displays)
+            display.Player.BeginShutdown();
 
-        foreach (var player in _players)
-            player.Dispose();
-        foreach (var form in _forms)
-            form.Dispose();
+        foreach (var display in _displays)
+        {
+            display.Player.Dispose();
+            display.Form.Dispose();
+        }
     }
+
+    private sealed record MonitorDisplay(ScreenSaverWindow Form, VideoPlayer Player);
 }

@@ -28,9 +28,12 @@ internal static class CaptionsState
             return;
         }
 
-        if (File.Exists(path))
+        try
         {
             File.Delete(path);
+        }
+        catch (IOException)
+        {
         }
     }
 }

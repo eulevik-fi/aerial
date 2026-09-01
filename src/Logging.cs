@@ -13,10 +13,10 @@ internal static class Logging
             if (!File.Exists(logPath))
                 return;
 
+            // Start fresh if the log file is older than 5 minutes
             if (DateTime.Now - File.GetLastWriteTime(logPath) > TimeSpan.FromMinutes(5))
             {
                 File.Delete(logPath);
-                File.WriteAllText(logPath, string.Empty);
             }
         }
         catch (IOException)
