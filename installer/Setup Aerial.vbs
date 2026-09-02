@@ -4,7 +4,7 @@ Dim shell, fileSystem, scr, rundll32
 Set shell = CreateObject("WScript.Shell")
 Set fileSystem = CreateObject("Scripting.FileSystemObject")
 
-scr = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%\Programs\Aerial Screen Saver\Aerial.scr")
+scr = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%\Programs\Aerial\Aerial.scr")
 If Not fileSystem.FileExists(scr) Then
 	MsgBox "Screensaver not found: " & scr, vbExclamation, "Aerial"
 	WScript.Quit 1

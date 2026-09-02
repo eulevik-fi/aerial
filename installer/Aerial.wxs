@@ -16,7 +16,7 @@
 
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="PROGRAMSDIR" Name="Programs">
-        <Directory Id="INSTALLFOLDER" Name="Aerial Screen Saver">
+        <Directory Id="INSTALLFOLDER" Name="Aerial">
           <Directory Id="LIBVLCDIR" Name="libvlc">
             <Directory Id="LIBVLCX64DIR" Name="win-x64" />
           </Directory>
