@@ -38,12 +38,34 @@ internal sealed class VideoPlayer : IDisposable
             EnableHardwareDecoding = true,
         };
 
+        _mediaPlayer.Buffering += (_, _) =>
+        {
+            Logging.Log($"[{_name}] Buffering");
+        };
+
+        _mediaPlayer.Playing += (_, _) =>
+        {
+            Logging.Log($"[{_name}] Playing");
+        };
+
+        _mediaPlayer.Paused += (_, _) =>
+        {
+            Logging.Log($"[{_name}] Paused");
+        };
+
+        _mediaPlayer.Stopped += (_, _) =>
+        {
+            Logging.Log($"[{_name}] Stopped");
+        };
+
         _mediaPlayer.EndReached += (_, _) =>
         {
+            Logging.Log($"[{_name}] Media ended (EndReached)");
             Ended?.Invoke();
         };
         _mediaPlayer.EncounteredError += (_, _) =>
         {
+            Logging.Log($"[{_name}] Media playback error (EncounteredError)");
             Failed?.Invoke();
         };
         
@@ -63,11 +85,13 @@ internal sealed class VideoPlayer : IDisposable
         if (_hostControl is null)
             throw new InvalidOperationException("This player requires Attach(IntPtr) for a direct window handle.");
 
+        Logging.Log($"[{_name}] Attach handle {_hostControl.Handle}");
         _mediaPlayer.Hwnd = _hostControl.Handle;
     }
 
     public void Attach(IntPtr hwnd)
     {
+        Logging.Log($"[{_name}] Attach handle {hwnd}");
         _mediaPlayer.Hwnd = hwnd;
     }
 
@@ -91,15 +115,18 @@ internal sealed class VideoPlayer : IDisposable
         }
 
         Logging.Log($"[{_name}] Play({url})");
+        Logging.Log($"[{_name}] Preparing to play: {url.AbsoluteUri}");
         _mediaPlayer.Stop();
         using var media = new Media(VLCManager.Instance, url.AbsoluteUri, FromType.FromLocation);
 
         media.AddOption(":no-gnutls-system-trust");
         media.AddOption(":http-reconnect");
 
+        Logging.Log($"[{_name}] Starting playback for {url.AbsoluteUri}");
         _mediaPlayer.Play(media);
         if (showHelpCaption)
         {
+            Logging.Log($"[{_name}] Showing help caption");
             AddSubtitleFromContent(SrtGeneration.GenerateHelp());
             return;
         }
@@ -110,6 +137,7 @@ internal sealed class VideoPlayer : IDisposable
 
     public void Stop()
     {
+        Logging.Log($"[{_name}] Stop()");
         _mediaPlayer.Stop();
     }
 
@@ -135,6 +163,7 @@ internal sealed class VideoPlayer : IDisposable
         if (!CanAddSubtitle() || _currentVideo is null)
             return;
 
+        Logging.Log($"[{_name}] Adding subtitle");
         string srtContent = _currentVideo.PointsOfInterest.Count > 0
             ? SrtGeneration.GenerateFromPointsOfInterest(_currentVideo.PointsOfInterest)
             : SrtGeneration.GenerateFromDescription(_currentVideo.Description);
@@ -153,10 +182,13 @@ internal sealed class VideoPlayer : IDisposable
                 Path.GetTempPath(),
                 $"video-subtitle-{Guid.NewGuid()}.srt");
 
+            Logging.Log($"[{_name}] Writing subtitle temp file: {subtitlePath}");
             File.WriteAllText(subtitlePath, srtContent);
 
             string fileUrl = new Uri(subtitlePath).AbsoluteUri;
+            Logging.Log($"[{_name}] Attaching subtitle slave: {fileUrl}");
             _mediaPlayer.AddSlave(MediaSlaveType.Subtitle, fileUrl, select: true);
+            Logging.Log($"[{_name}] Subtitle attached successfully");
         }
         catch (Exception ex)
         {
@@ -177,6 +209,7 @@ internal sealed class VideoPlayer : IDisposable
         {
             if (player.CanHideSubtitle())
             {
+                Logging.Log($"[{player._name}] Hiding subtitles");
                 player._mediaPlayer.SetSpu(-1);
             }
         });
@@ -201,7 +234,9 @@ internal sealed class VideoPlayer : IDisposable
     /// <summary>Toggle subtitle display on all players between shown and hidden.</summary>
     public static void ToggleSubtitles()
     {
-        if (CaptionsState.ToggleSubtitles())
+        var captionsEnabled = CaptionsState.ToggleSubtitles();
+        Logging.Log($"[Captions] ToggleSubtitles -> {captionsEnabled}");
+        if (captionsEnabled)
         {
             AddSubtitleToAll();
         }
@@ -213,6 +248,7 @@ internal sealed class VideoPlayer : IDisposable
 
     public void Dispose()
     {
+        Logging.Log($"[{_name}] Dispose()");
         _mediaPlayer.Stop();
         _mediaPlayer.Dispose();
         
