@@ -34,6 +34,9 @@ internal static class VLCManager
 
         var vlcOptions = new List<string>
         {
+            "--network-caching=3000", // milliseconds
+            "--http-reconnect",
+
             // Be a good citizen
             "--no-disable-screensaver",
 

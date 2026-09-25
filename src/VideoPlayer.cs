@@ -19,6 +19,7 @@ internal sealed class VideoPlayer : IDisposable
     private readonly System.Windows.Forms.Control? _hostControl;
     private readonly string _name;
     private Video? _currentVideo;
+    private bool _bufferingReported;
 
     public event Action? Ended;
     public event Action? Failed;
@@ -38,14 +39,19 @@ internal sealed class VideoPlayer : IDisposable
             EnableHardwareDecoding = true,
         };
 
-        _mediaPlayer.Buffering += (_, _) =>
+        _mediaPlayer.Buffering += (_, e) =>
         {
-            Logging.Log($"[{_name}] Buffering");
+            Logging.Log($"[{_name}] Buffering ({e.Cache:0.##}%)");
+            _bufferingReported = true;
+            if (e.Cache >= 100)
+                ShowVideoOutput();
         };
 
         _mediaPlayer.Playing += (_, _) =>
         {
             Logging.Log($"[{_name}] Playing");
+            if (!_bufferingReported)
+                ShowVideoOutput();
         };
 
         _mediaPlayer.Paused += (_, _) =>
@@ -116,11 +122,10 @@ internal sealed class VideoPlayer : IDisposable
 
         Logging.Log($"[{_name}] Play({url})");
         Logging.Log($"[{_name}] Preparing to play: {url.AbsoluteUri}");
+        _bufferingReported = false;
+        HideVideoOutput();
         _mediaPlayer.Stop();
         using var media = new Media(VLCManager.Instance, url.AbsoluteUri, FromType.FromLocation);
-
-        media.AddOption(":no-gnutls-system-trust");
-        media.AddOption(":http-reconnect");
 
         Logging.Log($"[{_name}] Starting playback for {url.AbsoluteUri}");
         _mediaPlayer.Play(media);
@@ -132,6 +137,36 @@ internal sealed class VideoPlayer : IDisposable
         }
 
         AddSubtitle();
+    }
+
+    private void HideVideoOutput()
+    {
+        SetVideoOutputVisibility(false);
+    }
+
+    private void ShowVideoOutput()
+    {
+        SetVideoOutputVisibility(true);
+    }
+
+    private void SetVideoOutputVisibility(bool visible)
+    {
+        if (IsPreviewPlayer(_name) || _hostControl is null || _hostControl.IsDisposed)
+            return;
+
+        if (_hostControl.InvokeRequired)
+        {
+            try
+            {
+                _hostControl.BeginInvoke(() => SetVideoOutputVisibility(visible));
+            }
+            catch (InvalidOperationException)
+            {
+            }
+            return;
+        }
+
+        _hostControl.Visible = visible;
     }
 
 
