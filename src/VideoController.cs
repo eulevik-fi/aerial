@@ -4,10 +4,6 @@ using System.IO;
 
 namespace Aerial;
 
-/// <summary>
-/// Downloads the Apple Aerial video catalog (entries.json), caches it on disk
-/// so subsequent runs can work offline, and extracts URL values from it.
-/// </summary>
 internal static class VideoController
 {
     private const int MruLimit = 10;

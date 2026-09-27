@@ -13,15 +13,12 @@ internal sealed class VideoCatalog_tvOS26 : IVideoCatalog
     private const string CatalogUrl = "https://sylvan.apple.com/itunes-assets/Aerials126/v4/c0/45/d9/c045d9d0-9606-1535-62fe-189edb4f79eb/resources-atv-23J-2.tar";
     private const string JsonFileName = "entries.json";
     private const string PlistFileName = "Localizable.nocache.strings";
-    private const string DownloadMarkerFileName = "tvos26_downloaded.txt";
     private const string CacheSubdirectory = "tvOS26";
 
     private static readonly string CacheDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Aerial",
         CacheSubdirectory);
-
-    private LocalizableStrings? _localizableStrings;
 
     public IReadOnlyList<Video> Videos { get; private set; } = [];
 
@@ -30,35 +27,18 @@ internal sealed class VideoCatalog_tvOS26 : IVideoCatalog
         Directory.CreateDirectory(CacheDirectory);
         string jsonPath = Path.Combine(CacheDirectory, JsonFileName);
         string plistPath = Path.Combine(CacheDirectory, PlistFileName);
-        string markerPath = Path.Combine(CacheDirectory, DownloadMarkerFileName);
         string? json;
         byte[]? plistData;
 
-        if (File.Exists(markerPath) && File.Exists(jsonPath) && File.Exists(plistPath))
-        {
-            json = File.ReadAllText(jsonPath);
-            plistData = File.ReadAllBytes(plistPath);
-        }
-        else
-        {
-            (json, plistData) = Downloader.DownloadTar(
-                CatalogUrl,
-                Path.Combine(CacheSubdirectory, JsonFileName),
-                Path.Combine(CacheSubdirectory, PlistFileName));
+        Downloader.DownloadTar(
+            CatalogUrl,
+            Path.Combine(CacheSubdirectory, JsonFileName),
+            Path.Combine(CacheSubdirectory, PlistFileName));
+        json = File.Exists(jsonPath) ? File.ReadAllText(jsonPath) : null;
+        plistData = File.Exists(plistPath) ? File.ReadAllBytes(plistPath) : null;
 
-            if (json is not null && plistData is not null)
-            {
-                File.WriteAllText(markerPath, string.Empty);
-            }
-        }
-
-        if (plistData is not null && plistData.Length > 0)
-        {
-            File.WriteAllBytes(plistPath, plistData);
-        }
-
-        _localizableStrings = new LocalizableStrings(plistPath);
-        Videos = ExtractVideos(json, _localizableStrings);
+        LocalizableStrings localizableStrings = new(plistPath);
+        Videos = ExtractVideos(json, localizableStrings);
     }
 
     private static IReadOnlyList<Video> ExtractVideos(string? json, LocalizableStrings? localizableStrings)

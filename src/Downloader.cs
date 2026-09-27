@@ -11,110 +11,88 @@ internal sealed class Downloader
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Aerial");
 
-    public static string? Download(string url, string cacheFileName)
+    public static void Download(string url, string cacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);
         string cachePath = Path.Combine(CacheDirectory, cacheFileName);
-        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-        string? content = null;
+        string cacheDirectory = Path.GetDirectoryName(cachePath)!;
+        string markerPath = Path.Combine(cacheDirectory, "downloaded.txt");
+        Directory.CreateDirectory(cacheDirectory);
+
+        if (File.Exists(markerPath) && File.Exists(cachePath))
+            return;
 
         try
         {
             using var http = CreateHttpClient();
             if (TarExtraction.IsTarUrl(url))
             {
-                byte[] archive = http.Send(new HttpRequestMessage(HttpMethod.Get, url)).Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-                content = TarExtraction.ExtractFiles(archive).Json;
+                byte[] archive = DownloadBytes(http, url);
+                string? json = TarExtraction.ExtractFiles(archive).Json;
+                if (json is not null)
+                {
+                    File.WriteAllText(cachePath, json);
+                    File.WriteAllText(markerPath, string.Empty);
+                }
             }
             else
             {
-                content = http.Send(new HttpRequestMessage(HttpMethod.Get, url)).Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            }
-
-            if (content is not null)
-            {
-                TryCacheContent(cachePath, () => File.WriteAllText(cachePath, content));
+                File.WriteAllText(cachePath, DownloadString(http, url));
+                File.WriteAllText(markerPath, string.Empty);
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
         {
-            if (File.Exists(cachePath))
-                content = File.ReadAllText(cachePath);
         }
-
-        return content;
-    }
-
-    /// <summary>Downloads and caches binary plist file from tar archive.</summary>
-    public static byte[]? DownloadBinary(string url, string cacheFileName)
-    {
-        Directory.CreateDirectory(CacheDirectory);
-        string cachePath = Path.Combine(CacheDirectory, cacheFileName);
-        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-        byte[]? content = null;
-
-        try
-        {
-            using var http = CreateHttpClient();
-            if (TarExtraction.IsTarUrl(url))
-            {
-                byte[] archive = http.Send(new HttpRequestMessage(HttpMethod.Get, url)).Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-                content = TarExtraction.ExtractFiles(archive).Binary;
-            }
-
-            if (content is not null)
-            {
-                TryCacheContent(cachePath, () => File.WriteAllBytes(cachePath, content));
-            }
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
-        {
-            if (File.Exists(cachePath))
-                content = File.ReadAllBytes(cachePath);
-        }
-
-        return content;
     }
 
     /// <summary>Downloads and caches both JSON and binary files from a tar archive.</summary>
-    public static (string? Json, byte[]? Binary) DownloadTar(string url, string jsonCacheFileName, string binaryCacheFileName)
+    public static void DownloadTar(string url, string jsonCacheFileName, string binaryCacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);
         string jsonCachePath = Path.Combine(CacheDirectory, jsonCacheFileName);
         string binaryCachePath = Path.Combine(CacheDirectory, binaryCacheFileName);
-        Directory.CreateDirectory(Path.GetDirectoryName(jsonCachePath)!);
-        Directory.CreateDirectory(Path.GetDirectoryName(binaryCachePath)!);
-        string? json = null;
-        byte[]? binary = null;
+        string cacheDirectory = Path.GetDirectoryName(jsonCachePath)!;
+        string markerPath = Path.Combine(cacheDirectory, "downloaded.txt");
+        Directory.CreateDirectory(cacheDirectory);
+
+        if (File.Exists(markerPath) && File.Exists(jsonCachePath) && File.Exists(binaryCachePath))
+            return;
 
         try
         {
             using var http = CreateHttpClient();
-            byte[] archive = http.Send(new HttpRequestMessage(HttpMethod.Get, url)).Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            byte[] archive = DownloadBytes(http, url);
             var extracted = TarExtraction.ExtractFiles(archive);
-            json = extracted.Json;
-            binary = extracted.Binary;
 
-            if (json is not null)
-            {
-                TryCacheContent(jsonCachePath, () => File.WriteAllText(jsonCachePath, json));
-            }
+            if (extracted.Json is not null)
+                File.WriteAllText(jsonCachePath, extracted.Json);
 
-            if (binary is not null)
-            {
-                TryCacheContent(binaryCachePath, () => File.WriteAllBytes(binaryCachePath, binary));
-            }
+            if (extracted.Binary is not null)
+                File.WriteAllBytes(binaryCachePath, extracted.Binary);
+
+            if (extracted.Json is not null && extracted.Binary is not null)
+                File.WriteAllText(markerPath, string.Empty);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
         {
-            if (File.Exists(jsonCachePath))
-                json = File.ReadAllText(jsonCachePath);
-
-            if (File.Exists(binaryCachePath))
-                binary = File.ReadAllBytes(binaryCachePath);
         }
+    }
 
-        return (json, binary);
+    private static byte[] DownloadBytes(HttpClient http, string url)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var response = http.Send(request);
+        response.EnsureSuccessStatusCode();
+        return response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+    }
+
+    private static string DownloadString(HttpClient http, string url)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var response = http.Send(request);
+        response.EnsureSuccessStatusCode();
+        return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
     }
 
     private static HttpClient CreateHttpClient()
@@ -130,17 +108,6 @@ internal sealed class Downloader
         };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("Aerial-Screensaver/1.0");
         return http;
-    }
-
-    private static void TryCacheContent(string cachePath, Action writeOperation)
-    {
-        try
-        {
-            writeOperation();
-        }
-        catch (IOException)
-        {
-        }
     }
 
 }

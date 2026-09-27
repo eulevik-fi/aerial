@@ -12,7 +12,6 @@ internal sealed class VideoCatalog_tvOS10 : IVideoCatalog
     /// <summary>tvOS 10: 1080p + H.264 only, no localization or points of interest</summary>
     private const string CatalogUrl = "http://a1.phobos.apple.com/us/r1000/000/Features/atv/AutumnResources/videos/entries.json";
     private const string MetadataFileName = "entries.json";
-    private const string DownloadMarkerFileName = "tvos10_downloaded.txt";
     private const string CacheSubdirectory = "tvOS10";
 
     private static readonly string CacheDirectory = Path.Combine(
@@ -26,19 +25,10 @@ internal sealed class VideoCatalog_tvOS10 : IVideoCatalog
     {
         Directory.CreateDirectory(CacheDirectory);
         string metadataPath = Path.Combine(CacheDirectory, MetadataFileName);
-        string markerPath = Path.Combine(CacheDirectory, DownloadMarkerFileName);
         string? json;
 
-        if (File.Exists(markerPath) && File.Exists(metadataPath))
-        {
-            json = File.ReadAllText(metadataPath);
-        }
-        else
-        {
-            json = Downloader.Download(CatalogUrl, Path.Combine(CacheSubdirectory, MetadataFileName));
-            if (json is not null)
-                File.WriteAllText(markerPath, string.Empty);
-        }
+        Downloader.Download(CatalogUrl, Path.Combine(CacheSubdirectory, MetadataFileName));
+        json = File.Exists(metadataPath) ? File.ReadAllText(metadataPath) : null;
 
         Videos = ExtractVideos(json);
     }
