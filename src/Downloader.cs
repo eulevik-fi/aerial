@@ -11,10 +11,11 @@ internal sealed class Downloader
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Aerial");
 
-    public static async Task<string?> DownloadAsync(string url, string cacheFileName)
+    public static string? Download(string url, string cacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);
         string cachePath = Path.Combine(CacheDirectory, cacheFileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
         string? content = null;
 
         try
@@ -22,33 +23,34 @@ internal sealed class Downloader
             using var http = CreateHttpClient();
             if (TarExtraction.IsTarUrl(url))
             {
-                byte[] archive = await http.GetByteArrayAsync(url).ConfigureAwait(false);
+                byte[] archive = http.Send(new HttpRequestMessage(HttpMethod.Get, url)).Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
                 content = TarExtraction.ExtractFiles(archive).Json;
             }
             else
             {
-                content = await http.GetStringAsync(url).ConfigureAwait(false);
+                content = http.Send(new HttpRequestMessage(HttpMethod.Get, url)).Content.ReadAsStringAsync().GetAwaiter().GetResult();
             }
 
             if (content is not null)
             {
-                await TryCacheContentAsync(cachePath, () => File.WriteAllTextAsync(cachePath, content));
+                TryCacheContent(cachePath, () => File.WriteAllText(cachePath, content));
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
         {
             if (File.Exists(cachePath))
-                content = await File.ReadAllTextAsync(cachePath).ConfigureAwait(false);
+                content = File.ReadAllText(cachePath);
         }
 
         return content;
     }
 
     /// <summary>Downloads and caches binary plist file from tar archive.</summary>
-    public static async Task<byte[]?> DownloadBinaryAsync(string url, string cacheFileName)
+    public static byte[]? DownloadBinary(string url, string cacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);
         string cachePath = Path.Combine(CacheDirectory, cacheFileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
         byte[]? content = null;
 
         try
@@ -56,58 +58,60 @@ internal sealed class Downloader
             using var http = CreateHttpClient();
             if (TarExtraction.IsTarUrl(url))
             {
-                byte[] archive = await http.GetByteArrayAsync(url).ConfigureAwait(false);
+                byte[] archive = http.Send(new HttpRequestMessage(HttpMethod.Get, url)).Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
                 content = TarExtraction.ExtractFiles(archive).Binary;
             }
 
             if (content is not null)
             {
-                await TryCacheContentAsync(cachePath, () => File.WriteAllBytesAsync(cachePath, content));
+                TryCacheContent(cachePath, () => File.WriteAllBytes(cachePath, content));
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
         {
             if (File.Exists(cachePath))
-                content = await File.ReadAllBytesAsync(cachePath).ConfigureAwait(false);
+                content = File.ReadAllBytes(cachePath);
         }
 
         return content;
     }
 
     /// <summary>Downloads and caches both JSON and binary files from a tar archive.</summary>
-    public static async Task<(string? Json, byte[]? Binary)> DownloadTarAsync(string url, string jsonCacheFileName, string binaryCacheFileName)
+    public static (string? Json, byte[]? Binary) DownloadTar(string url, string jsonCacheFileName, string binaryCacheFileName)
     {
         Directory.CreateDirectory(CacheDirectory);
         string jsonCachePath = Path.Combine(CacheDirectory, jsonCacheFileName);
         string binaryCachePath = Path.Combine(CacheDirectory, binaryCacheFileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(jsonCachePath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(binaryCachePath)!);
         string? json = null;
         byte[]? binary = null;
 
         try
         {
             using var http = CreateHttpClient();
-            byte[] archive = await http.GetByteArrayAsync(url).ConfigureAwait(false);
+            byte[] archive = http.Send(new HttpRequestMessage(HttpMethod.Get, url)).Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
             var extracted = TarExtraction.ExtractFiles(archive);
             json = extracted.Json;
             binary = extracted.Binary;
 
             if (json is not null)
             {
-                await TryCacheContentAsync(jsonCachePath, () => File.WriteAllTextAsync(jsonCachePath, json));
+                TryCacheContent(jsonCachePath, () => File.WriteAllText(jsonCachePath, json));
             }
 
             if (binary is not null)
             {
-                await TryCacheContentAsync(binaryCachePath, () => File.WriteAllBytesAsync(binaryCachePath, binary));
+                TryCacheContent(binaryCachePath, () => File.WriteAllBytes(binaryCachePath, binary));
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
         {
             if (File.Exists(jsonCachePath))
-                json = await File.ReadAllTextAsync(jsonCachePath).ConfigureAwait(false);
+                json = File.ReadAllText(jsonCachePath);
 
             if (File.Exists(binaryCachePath))
-                binary = await File.ReadAllBytesAsync(binaryCachePath).ConfigureAwait(false);
+                binary = File.ReadAllBytes(binaryCachePath);
         }
 
         return (json, binary);
@@ -128,11 +132,11 @@ internal sealed class Downloader
         return http;
     }
 
-    private static async Task TryCacheContentAsync(string cachePath, Func<Task> writeOperation)
+    private static void TryCacheContent(string cachePath, Action writeOperation)
     {
         try
         {
-            await writeOperation().ConfigureAwait(false);
+            writeOperation();
         }
         catch (IOException)
         {

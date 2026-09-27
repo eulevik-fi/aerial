@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Aerial;
 
@@ -12,5 +11,5 @@ internal interface IVideoCatalog
     IReadOnlyList<Video> Videos { get; }
 
     /// <summary>Initializes the catalog by downloading and parsing video entries.</summary>
-    Task InitializeAsync();
+    void Initialize();
 }

@@ -291,10 +291,10 @@ internal static class Program
     private static IVideoCatalog InitializePlayback()
     {
         // Fetch (or refresh) the video catalog before showing anything.
-        VideoController.InitializeAsync().GetAwaiter().GetResult();
+        VideoController.Initialize();
         // var catalog = new VideoCatalog_tvOS10();
         var catalog = new VideoCatalog_tvOS26();
-        catalog.InitializeAsync().GetAwaiter().GetResult();
+        catalog.Initialize();
         return catalog;
     }
 }

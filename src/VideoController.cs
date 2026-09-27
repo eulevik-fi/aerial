@@ -20,7 +20,7 @@ internal static class VideoController
     private static readonly LinkedList<string> RecentVideos = [];
 
     /// <summary>Loads the recently played video list.</summary>
-    public static async Task InitializeAsync()
+    public static void Initialize()
     {
         Directory.CreateDirectory(CacheDirectory);
         LoadMru();

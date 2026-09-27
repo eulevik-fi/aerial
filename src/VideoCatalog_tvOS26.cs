@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace Aerial;
 
@@ -12,25 +11,50 @@ internal sealed class VideoCatalog_tvOS26 : IVideoCatalog
 {
     /// <summary>tvOS 26: 4K + SDR/HDR + HEVC, 1080p + H.264, localised descriptions in TAR archive</summary>
     private const string CatalogUrl = "https://sylvan.apple.com/itunes-assets/Aerials126/v4/c0/45/d9/c045d9d0-9606-1535-62fe-189edb4f79eb/resources-atv-23J-2.tar";
+    private const string JsonFileName = "entries.json";
+    private const string PlistFileName = "Localizable.nocache.strings";
+    private const string DownloadMarkerFileName = "tvos26_downloaded.txt";
+    private const string CacheSubdirectory = "tvOS26";
+
+    private static readonly string CacheDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Aerial",
+        CacheSubdirectory);
 
     private LocalizableStrings? _localizableStrings;
 
     public IReadOnlyList<Video> Videos { get; private set; } = [];
 
-    public async Task InitializeAsync()
+    public void Initialize()
     {
-        // Download both files in a single call (from TAR)
-        var (json, plistData) = await Downloader.DownloadTarAsync(CatalogUrl, "entries.json", "Localizable.nocache.strings").ConfigureAwait(false);
+        Directory.CreateDirectory(CacheDirectory);
+        string jsonPath = Path.Combine(CacheDirectory, JsonFileName);
+        string plistPath = Path.Combine(CacheDirectory, PlistFileName);
+        string markerPath = Path.Combine(CacheDirectory, DownloadMarkerFileName);
+        string? json;
+        byte[]? plistData;
 
-        string plistPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Aerial",
-            "Localizable.nocache.strings");
+        if (File.Exists(markerPath) && File.Exists(jsonPath) && File.Exists(plistPath))
+        {
+            json = File.ReadAllText(jsonPath);
+            plistData = File.ReadAllBytes(plistPath);
+        }
+        else
+        {
+            (json, plistData) = Downloader.DownloadTar(
+                CatalogUrl,
+                Path.Combine(CacheSubdirectory, JsonFileName),
+                Path.Combine(CacheSubdirectory, PlistFileName));
 
-        Directory.CreateDirectory(Path.GetDirectoryName(plistPath)!);
+            if (json is not null && plistData is not null)
+            {
+                File.WriteAllText(markerPath, string.Empty);
+            }
+        }
+
         if (plistData is not null && plistData.Length > 0)
         {
-            await File.WriteAllBytesAsync(plistPath, plistData).ConfigureAwait(false);
+            File.WriteAllBytes(plistPath, plistData);
         }
 
         _localizableStrings = new LocalizableStrings(plistPath);

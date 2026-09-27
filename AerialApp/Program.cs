@@ -40,10 +40,10 @@ internal static class AerialApp
 
             MonitorInfo.Discover();
 
-            VideoController.InitializeAsync().GetAwaiter().GetResult();
+            VideoController.Initialize();
             // IVideoCatalog catalog = new VideoCatalog_tvOS10();
             IVideoCatalog catalog = new VideoCatalog_tvOS26();
-            catalog.InitializeAsync().GetAwaiter().GetResult();
+            catalog.Initialize();
             Logging.Log($"Catalog loaded: {catalog.Videos.Count} assets");
 
             using var idleTracker = new IdleExitTracker();
