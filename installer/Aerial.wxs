@@ -4,7 +4,7 @@
       Name="Aerial Screen Saver"
       Manufacturer="Eric Ulevik"
       Version="$(var.ProductVersion)"
-      Scope="perUser"
+      Scope="perMachine"
       UpgradeCode="D6A2D79C-6E5F-4A2A-9AC4-3C50A0EE8DF5">
     <SummaryInformation Description="Aerial Screen Saver" />
     <MajorUpgrade
@@ -14,12 +14,28 @@
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="AerialIcon" SourceFile="$(var.SourceDir)\Aerial.ico" />
 
-    <StandardDirectory Id="LocalAppDataFolder">
-      <Directory Id="PROGRAMSDIR" Name="Programs">
-        <Directory Id="INSTALLFOLDER" Name="Aerial">
-          <Directory Id="LIBVLCDIR" Name="libvlc">
-            <Directory Id="LIBVLCX64DIR" Name="win-x64" />
-          </Directory>
+    <!-- Earlier per-user installs may be registered in either uninstall hive. -->
+    <Property Id="PREVIOUSPERUSERVERSIONHKCU" Secure="yes">
+      <RegistrySearch
+        Id="PreviousPerUserVersionHKCUSearch"
+        Root="HKCU"
+        Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{7667294A-BC6A-47EA-8B1C-0F6FF47D4DFD}"
+        Name="DisplayName"
+        Type="raw" />
+    </Property>
+    <Property Id="PREVIOUSPERUSERVERSIONHKLM" Secure="yes">
+      <RegistrySearch
+        Id="PreviousPerUserVersionHKLMSearch"
+        Root="HKLM"
+        Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{7667294A-BC6A-47EA-8B1C-0F6FF47D4DFD}"
+        Name="DisplayName"
+        Type="raw" />
+    </Property>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Aerial">
+        <Directory Id="LIBVLCDIR" Name="libvlc">
+          <Directory Id="LIBVLCX64DIR" Name="win-x64" />
         </Directory>
       </Directory>
     </StandardDirectory>
@@ -66,6 +82,13 @@
     <InstallExecuteSequence>
       <Custom Action="RunSetupAerial" Before="InstallFinalize" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
+
+    <SetProperty
+      Id="WIX_UPGRADE_DETECTED"
+      Value="{7667294A-BC6A-47EA-8B1C-0F6FF47D4DFD};[WIX_UPGRADE_DETECTED]"
+      Before="RemoveExistingProducts"
+      Sequence="execute"
+      Condition="PREVIOUSPERUSERVERSIONHKCU OR PREVIOUSPERUSERVERSIONHKLM" />
 
   </Package>
 </Wix>

@@ -6,15 +6,16 @@
 
 namespace
 {
-    constexpr wchar_t ScreenSaverRelativePath[] = L"Programs\\Aerial\\Aerial.scr";
+    constexpr wchar_t ScreenSaverRelativePath[] = L"Aerial\\Aerial.scr";
 
     std::wstring GetScreenSaverPath()
     {
-        wchar_t localAppData[MAX_PATH];
-        if (FAILED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, localAppData)))
+        PWSTR programFiles = nullptr;
+        if (FAILED(SHGetKnownFolderPath(FOLDERID_ProgramFilesX64, 0, nullptr, &programFiles)))
             return {};
 
-        std::wstring path = localAppData;
+        std::wstring path = programFiles;
+        CoTaskMemFree(programFiles);
         path += L"\\";
         path += ScreenSaverRelativePath;
         return path;
