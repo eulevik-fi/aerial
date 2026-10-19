@@ -80,7 +80,7 @@
         Return="asyncNoWait" />
     
     <InstallExecuteSequence>
-      <Custom Action="RunSetupAerial" Before="InstallFinalize" Condition="NOT REMOVE" />
+      <Custom Action="RunSetupAerial" Before="InstallFinalize" Condition="NOT REMOVE AND UILevel &gt; 2" />
     </InstallExecuteSequence>
 
     <SetProperty
