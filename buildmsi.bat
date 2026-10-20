@@ -3,6 +3,7 @@ call buildsetup.bat || exit /b 1
 
 rem --- Setup Aerial UX (AerialSetup.exe) ---
 msbuild AerialSetup\AerialSetup.vcxproj /p:Configuration=Release /p:Platform=x64 /m || exit /b 1
+msbuild installer\AerialInstallerCA.vcxproj /p:Configuration=Release /p:Platform=x64 /m || exit /b 1
 
 copy /y "installer\Aerial.ico" out\Aerial.ico >nul
 

@@ -14,24 +14,6 @@
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="AerialIcon" SourceFile="$(var.SourceDir)\Aerial.ico" />
 
-    <!-- Earlier per-user installs may be registered in either uninstall hive. -->
-    <Property Id="PREVIOUSPERUSERVERSIONHKCU" Secure="yes">
-      <RegistrySearch
-        Id="PreviousPerUserVersionHKCUSearch"
-        Root="HKCU"
-        Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{7667294A-BC6A-47EA-8B1C-0F6FF47D4DFD}"
-        Name="DisplayName"
-        Type="raw" />
-    </Property>
-    <Property Id="PREVIOUSPERUSERVERSIONHKLM" Secure="yes">
-      <RegistrySearch
-        Id="PreviousPerUserVersionHKLMSearch"
-        Root="HKLM"
-        Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\{7667294A-BC6A-47EA-8B1C-0F6FF47D4DFD}"
-        Name="DisplayName"
-        Type="raw" />
-    </Property>
-
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Aerial">
         <Directory Id="LIBVLCDIR" Name="libvlc">
@@ -49,9 +31,18 @@
       <Files Include="$(var.SourceDir)\**" Directory="INSTALLFOLDER">
         <Exclude Files="$(var.SourceDir)\AerialApp*" />
         <Exclude Files="$(var.SourceDir)\AerialSetup.exe" />
+        <Exclude Files="$(var.SourceDir)\AerialInstallerCA.dll" />
         <Exclude Files="$(var.SourceDir)\**\*.pdb" />
       </Files>
     </Feature>
+
+    <Binary Id="AerialInstallerCA" SourceFile="$(var.SourceDir)\AerialInstallerCA.dll" />
+    <CustomAction
+      Id="FindPreviousPerMachineInstallations"
+      BinaryRef="AerialInstallerCA"
+      DllEntry="FindPreviousPerMachineInstallations"
+      Execute="immediate"
+      Return="check" />
 
     <Component Id="SetupAerialShortcut" Directory="INSTALLFOLDER" Guid="*">
       <File Id="SetupAerialLauncher" Source="$(var.SourceDir)\AerialSetup.exe" KeyPath="yes" />
@@ -81,14 +72,8 @@
     
     <InstallExecuteSequence>
       <Custom Action="RunSetupAerial" Before="InstallFinalize" Condition="NOT REMOVE AND UILevel &gt; 2" />
+      <Custom Action="FindPreviousPerMachineInstallations" Before="RemoveExistingProducts" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
-
-    <SetProperty
-      Id="WIX_UPGRADE_DETECTED"
-      Value="{7667294A-BC6A-47EA-8B1C-0F6FF47D4DFD};[WIX_UPGRADE_DETECTED]"
-      Before="RemoveExistingProducts"
-      Sequence="execute"
-      Condition="PREVIOUSPERUSERVERSIONHKCU OR PREVIOUSPERUSERVERSIONHKLM" />
 
   </Package>
 </Wix>
